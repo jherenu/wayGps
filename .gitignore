@@ -1,0 +1,68 @@
+# Archivos de configuración sensibles
+*.env
+.env
+.env.local
+.env.production
+settings_local.py
+local_settings.py
+
+# Base de datos
+*.db
+*.sqlite3
+postgres-data/
+db.sqlite3
+
+# Credenciales y secretos
+secrets.json
+credentials.json
+*.pem
+*.key
+
+# Logs
+*.log
+logs/
+log/
+
+# Cache de Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+
+# Archivos de IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Archivos del sistema
+.DS_Store
+Thumbs.db
+
+# Media files (uploads de usuarios)
+media/
+mediafiles/
+
+# Static files compilados
+staticfiles/
+collected-static/
+
+# Archivos de Docker sensibles
+docker-compose.override.yml
+.dockerignore
+
+# Archivos temporales
+*.tmp
+*.temp
+.coverage
+htmlcov/
+
+# Backups
+*.backup
+*.bak
+*.sql
