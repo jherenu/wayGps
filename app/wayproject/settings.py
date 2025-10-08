@@ -15,12 +15,15 @@ import os
 
 # Configuración GDAL para Windows
 if os.name == 'nt':  # Windows
-    OSGEO4W = r"C:\OSGeo4W64"
-    os.environ['OSGEO4W_ROOT'] = OSGEO4W
-    os.environ['GDAL_DATA'] = OSGEO4W + r"\share\gdal"
-    os.environ['PROJ_LIB'] = OSGEO4W + r"\share\proj"
-    os.environ['PATH'] = OSGEO4W + r"\bin;" + os.environ['PATH']
+    QGIS_PATH = r"C:\Program Files\QGIS 3.44.3"
+    os.environ['OSGEO4W_ROOT'] = QGIS_PATH
+    os.environ['GDAL_DATA'] = QGIS_PATH + r"\share\gdal"
+    os.environ['PROJ_LIB'] = QGIS_PATH + r"\share\proj"
+    os.environ['PATH'] = QGIS_PATH + r"\bin;" + os.environ['PATH']
+    GDAL_LIBRARY_PATH = QGIS_PATH + r"\bin\gdal311.dll"
+
 from decouple import config
+
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -48,6 +51,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'django.contrib.gis',
+    'rest_framework',
     'gps',    
 ]
 
@@ -92,7 +96,7 @@ WSGI_APPLICATION = 'wayproject.wsgi.application'
 #}
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql',
+        'ENGINE': 'django.contrib.gis.db.backends.postgis',
         'NAME': config('POSTGRES_DB'),
         'USER': config('POSTGRES_USER'),
         'PASSWORD': config('POSTGRES_PASSWORD'),

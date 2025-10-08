@@ -1,13 +1,13 @@
 from django.contrib.gis.db import models
-from django.contrib.postgres.fields import CITextField
+#from django.contrib.postgres.fields import CITextField
 
 
 class Movil(models.Model):
     # Identificación
     id = models.BigAutoField(primary_key=True)
     codigo = models.CharField(max_length=32, unique=True, null=True, blank=True)
-    alias = CITextField(null=True, blank=True)
-    patente = CITextField(unique=True, null=True, blank=True)
+    alias = models.CharField(null=True, blank=True)
+    patente = models.CharField(unique=True, null=True, blank=True)
     vin = models.CharField(max_length=17, null=True, blank=True)
 
     # Datos del vehículo
@@ -18,7 +18,7 @@ class Movil(models.Model):
     tipo_vehiculo = models.CharField(max_length=20, null=True, blank=True)
 
     # Equipo GPS
-    gps_id = CITextField(unique=True)
+    gps_id = models.CharField(unique=True, null=True, blank=True)
 
     # Última posición
     ultimo_lat = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)

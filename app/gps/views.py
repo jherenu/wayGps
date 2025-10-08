@@ -1,3 +1,8 @@
-from django.shortcuts import render
+from rest_framework import viewsets
+from .models import Movil
+from .serializers import MovilSerializer
 
-# Create your views here.
+
+class MovilViewSet(viewsets.ModelViewSet):
+    queryset = Movil.objects.all()
+    serializer_class = MovilSerializer
