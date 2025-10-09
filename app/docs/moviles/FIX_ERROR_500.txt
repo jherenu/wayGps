@@ -1,0 +1,202 @@
+╔════════════════════════════════════════════════════════════════════════════╗
+║                                                                            ║
+║                  ✅ ERROR 500 CORREGIDO - EXPLICACIÓN                      ║
+║                                                                            ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+================================================================================
+PROBLEMA IDENTIFICADO
+================================================================================
+
+Error al intentar crear/guardar un móvil:
+  POST http://127.0.0.1:8000/api/moviles/ 500 (Internal Server Error)
+
+CAUSA:
+Los campos CharField en el modelo Movil no tenían max_length definido:
+  - alias: CharField sin max_length
+  - patente: CharField sin max_length  
+  - gps_id: CharField sin max_length
+
+Django REQUIERE que todos los CharField tengan un max_length especificado.
+
+================================================================================
+SOLUCIÓN APLICADA
+================================================================================
+
+✅ CORRECCIÓN EN gps/models.py:
+
+ANTES:
+  alias = models.CharField(null=True, blank=True)                    # ❌ Sin max_length
+  patente = models.CharField(unique=True, null=True, blank=True)     # ❌ Sin max_length
+  gps_id = models.CharField(unique=True, null=True, blank=True)      # ❌ Sin max_length
+
+DESPUÉS:
+  alias = models.CharField(max_length=100, null=True, blank=True)    # ✅ Con max_length
+  patente = models.CharField(max_length=20, unique=True, ...)        # ✅ Con max_length
+  gps_id = models.CharField(max_length=50, unique=True, ...)         # ✅ Con max_length
+
+✅ MIGRACIONES CREADAS Y APLICADAS:
+  - python manage.py makemigrations
+  - python manage.py migrate
+
+================================================================================
+LONGITUDES DEFINIDAS
+================================================================================
+
+Campo              Max Length    Justificación
+────────────────────────────────────────────────────────────────────────────
+alias              100           Nombre descriptivo del móvil
+patente            20            Patente estándar (ej: ABC123, AA123BB)
+gps_id             50            ID del dispositivo GPS
+codigo             32            Ya tenía (sin cambios)
+vin                17            Estándar VIN (sin cambios)
+tipo_vehiculo      20            Ya tenía (sin cambios)
+
+================================================================================
+PASOS PARA VERIFICAR
+================================================================================
+
+1. REINICIAR SERVIDOR DJANGO
+   ```
+   python manage.py runserver
+   ```
+
+2. PROBAR CREAR UN MÓVIL
+   - Abre http://127.0.0.1:8000/
+   - Clic en "Nuevo Móvil"
+   - Completa el formulario
+   - Clic en "Guardar"
+
+3. VERIFICAR QUE NO HAY ERRORES
+   ✓ Sin error 500
+   ✓ Móvil se crea correctamente
+   ✓ Móvil aparece en la lista
+
+================================================================================
+SI PERSISTE EL ERROR
+================================================================================
+
+1. VERIFICAR LOGS DEL SERVIDOR
+   En la terminal donde corre Django, busca el error específico.
+
+2. VERIFICAR CAMPOS ÚNICOS
+   Si el error menciona "duplicate key" o "unique constraint":
+   - Estás intentando usar una patente que ya existe
+   - Estás intentando usar un gps_id que ya existe
+   - Estás intentando usar un código que ya existe
+   
+   Solución: Usa valores diferentes para campos únicos.
+
+3. VERIFICAR FORMATO DE DATOS
+   - anio: debe ser número entre 1900-2030
+   - patente: debe tener max 20 caracteres
+   - alias: debe tener max 100 caracteres
+   - gps_id: debe tener max 50 caracteres
+
+4. VERIFICAR CONEXIÓN A BASE DE DATOS
+   ```
+   python manage.py dbshell
+   ```
+   Si no conecta, verifica settings.py y credenciales.
+
+================================================================================
+ERROR ERR_CONNECTION_REFUSED
+================================================================================
+
+Si ves: "Failed to load resource: net::ERR_CONNECTION_REFUSED"
+
+CAUSA: El servidor Django se detuvo o reinició.
+
+SOLUCIÓN:
+1. Verifica que el servidor esté corriendo
+2. Revisa la terminal donde ejecutaste `python manage.py runserver`
+3. Si se detuvo, reinicia el servidor
+4. Si hay errores, corrígelos y reinicia
+
+================================================================================
+PRUEBA RÁPIDA
+================================================================================
+
+Después de reiniciar el servidor, prueba desde la consola del navegador (F12):
+
+```javascript
+// Crear móvil de prueba
+const testMovil = {
+    patente: 'TEST123',
+    alias: 'Vehículo de Prueba',
+    marca: 'Toyota',
+    modelo: 'Corolla',
+    anio: 2020,
+    tipo_vehiculo: 'auto',
+    activo: true
+};
+
+// Enviar a la API
+fetch('http://127.0.0.1:8000/api/moviles/', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(testMovil)
+})
+.then(r => r.json())
+.then(data => console.log('✅ Móvil creado:', data))
+.catch(err => console.error('❌ Error:', err));
+```
+
+Si ves "✅ Móvil creado:", el problema está resuelto.
+
+================================================================================
+COMANDOS ÚTILES
+================================================================================
+
+# Verificar configuración
+python manage.py check
+
+# Ver migraciones pendientes
+python manage.py showmigrations
+
+# Crear migraciones
+python manage.py makemigrations
+
+# Aplicar migraciones
+python manage.py migrate
+
+# Revertir última migración (si es necesario)
+python manage.py migrate gps 0001
+
+# Iniciar servidor
+python manage.py runserver
+
+# Ver shell de Django
+python manage.py shell
+
+================================================================================
+PREVENCIÓN FUTURA
+================================================================================
+
+Al crear nuevos modelos o campos, SIEMPRE:
+
+✅ CharField → DEBE tener max_length
+✅ IntegerField → Considera min/max si aplica
+✅ DecimalField → DEBE tener max_digits y decimal_places
+✅ Campos únicos → Maneja ValidationError apropiadamente
+✅ Campos obligatorios → Define null=False, blank=False
+✅ Campos opcionales → Define null=True, blank=True
+
+EJEMPLO CORRECTO:
+
+```python
+class MiModelo(models.Model):
+    nombre = models.CharField(max_length=100)                      # ✅
+    email = models.EmailField(max_length=254, unique=True)         # ✅
+    edad = models.IntegerField(null=True, blank=True)              # ✅
+    precio = models.DecimalField(max_digits=10, decimal_places=2)  # ✅
+    activo = models.BooleanField(default=True)                     # ✅
+```
+
+================================================================================
+
+✅ El error ha sido corregido.
+🔄 Reinicia el servidor Django.
+✨ ¡Deberías poder crear móviles sin problemas!
+
+================================================================================

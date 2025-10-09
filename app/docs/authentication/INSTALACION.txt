@@ -1,0 +1,251 @@
+╔════════════════════════════════════════════════════════════════════════════╗
+║                                                                            ║
+║           INSTALACIÓN DEL SISTEMA DE AUTENTICACIÓN - GUÍA RÁPIDA          ║
+║                                                                            ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+================================================================================
+PASO 1: INICIALIZAR DATOS
+================================================================================
+
+Ejecuta el comando para crear perfiles, roles y superusuario:
+
+┌──────────────────────────────────────────────────────────────┐
+│ python manage.py init_auth_data                              │
+└──────────────────────────────────────────────────────────────┘
+
+Esto creará:
+  ✓ 10 Perfiles (Dashboard, Móviles, Equipos, etc.)
+  ✓ 3 Roles (Superadmin, Supervisor, Operador)
+  ✓ Permisos de entidad
+  ✓ 1 Superusuario (admin)
+
+================================================================================
+PASO 2: REINICIAR SERVIDOR
+================================================================================
+
+┌──────────────────────────────────────────────────────────────┐
+│ python manage.py runserver                                   │
+└──────────────────────────────────────────────────────────────┘
+
+================================================================================
+PASO 3: ACCEDER AL SISTEMA
+================================================================================
+
+Abre tu navegador y ve a:
+
+┌──────────────────────────────────────────────────────────────┐
+│ http://127.0.0.1:8000/                                       │
+└──────────────────────────────────────────────────────────────┘
+
+Serás redirigido a la página de login.
+
+================================================================================
+PASO 4: INICIAR SESIÓN
+================================================================================
+
+Usa las credenciales del superusuario:
+
+┌──────────────────────────────────────────────────────────────┐
+│ Username: admin                                              │
+│ Password: admin123                                           │
+└──────────────────────────────────────────────────────────────┘
+
+================================================================================
+PASO 5: ¡LISTO!
+================================================================================
+
+Serás redirigido al Dashboard de móviles con:
+  ✓ Acceso completo a todas las funcionalidades
+  ✓ Ver móviles, crear, editar, eliminar
+  ✓ Acceso a todos los mapas y reportes
+  ✓ Información de usuario en sidebar
+  ✓ Botón "Cerrar Sesión"
+
+================================================================================
+VERIFICACIÓN
+================================================================================
+
+CHECKLIST:
+□ Comando init_auth_data ejecutado sin errores
+□ Mensaje "Superusuario creado exitosamente"
+□ Servidor corriendo en http://127.0.0.1:8000
+□ Página de login se carga correctamente
+□ Login con admin/admin123 funciona
+□ Redirige a /moviles/
+□ Se muestra nombre de usuario en sidebar
+□ Botón "Cerrar Sesión" funciona
+
+================================================================================
+SOLUCIÓN DE PROBLEMAS
+================================================================================
+
+PROBLEMA: Comando init_auth_data no existe
+SOLUCIÓN:
+  1. Verifica que authentication esté en INSTALLED_APPS
+  2. Verifica carpeta: authentication/management/commands/
+  3. Verifica archivos __init__.py existan
+  4. Reinicia servidor
+
+PROBLEMA: Error al ejecutar init_auth_data
+SOLUCIÓN:
+  1. Verifica que las migraciones estén aplicadas
+  2. python manage.py migrate authentication
+  3. Revisa error específico en output
+
+PROBLEMA: Login no funciona (credenciales inválidas)
+SOLUCIÓN:
+  1. Verifica que el superusuario se creó
+  2. python manage.py shell
+  3. from django.contrib.auth.models import User
+  4. User.objects.filter(is_superuser=True)
+  5. Si no existe, créalo: python manage.py createsuperuser
+
+PROBLEMA: No redirige después de login
+SOLUCIÓN:
+  1. Abre consola del navegador (F12)
+  2. Busca errores JavaScript
+  3. Verifica que auth.js se cargue correctamente
+  4. Verifica CORS configurado
+
+PROBLEMA: "Token inválido" o "Usuario no autenticado"
+SOLUCIÓN:
+  1. Limpia localStorage: localStorage.clear()
+  2. Vuelve a hacer login
+  3. Verifica que el token se guarde correctamente
+
+================================================================================
+CREAR USUARIOS ADICIONALES
+================================================================================
+
+MÉTODO 1 - Admin Django:
+
+1. http://127.0.0.1:8000/admin/
+2. Login con admin/admin123
+3. Users -> Add User
+4. Username + Password
+5. En inline "Perfil de Usuario":
+   - Selecciona Rol (Supervisor u Operador)
+6. Save
+
+MÉTODO 2 - Shell:
+
+```
+python manage.py shell
+
+from django.contrib.auth.models import User
+from authentication.models import Rol
+
+# Crear usuario
+user = User.objects.create_user(
+    username='supervisor1',
+    email='supervisor@waygps.com',
+    password='super123',
+    first_name='Carlos',
+    last_name='Supervisor'
+)
+
+# Asignar rol
+rol = Rol.objects.get(codigo='supervisor')
+user.perfil_usuario.rol = rol
+user.perfil_usuario.save()
+```
+
+================================================================================
+CAMBIAR CONTRASEÑA
+================================================================================
+
+OPCIÓN 1 - Admin Django:
+  1. http://127.0.0.1:8000/admin/
+  2. Users -> admin -> Change password
+
+OPCIÓN 2 - API:
+  POST /api/auth/cambiar-password/
+  Headers: Authorization: Token <token>
+  Body: {
+      "password_actual": "admin123",
+      "password_nueva": "nueva_password",
+      "password_nueva_confirm": "nueva_password"
+  }
+
+OPCIÓN 3 - Shell:
+  ```
+  from django.contrib.auth.models import User
+  user = User.objects.get(username='admin')
+  user.set_password('nueva_password')
+  user.save()
+  ```
+
+================================================================================
+TESTING RÁPIDO
+================================================================================
+
+1. PROBAR LOGIN:
+   http://127.0.0.1:8000/login/
+   admin / admin123
+
+2. VERIFICAR REDIRECCION:
+   Debe ir a /moviles/
+
+3. VERIFICAR DATOS DE USUARIO:
+   - Nombre visible en sidebar
+   - Email visible
+
+4. PROBAR LOGOUT:
+   - Clic en "Cerrar Sesión"
+   - Debe redirigir a /login/
+
+5. PROBAR SIN AUTENTICACIÓN:
+   - Limpia cookies y storage
+   - Intenta ir a /moviles/
+   - Debe redirigir a /login/
+
+================================================================================
+COMANDOS DE REFERENCIA
+================================================================================
+
+# Inicializar datos (perfiles, roles, superusuario)
+python manage.py init_auth_data
+
+# Crear superusuario adicional
+python manage.py createsuperuser
+
+# Ver usuarios
+python manage.py shell
+>>> from django.contrib.auth.models import User
+>>> User.objects.all()
+
+# Ver roles
+>>> from authentication.models import Rol
+>>> Rol.objects.all()
+
+# Ver perfiles de un usuario
+>>> user = User.objects.get(username='admin')
+>>> user.perfil_usuario.rol.perfiles.all()
+
+# Ver permisos de un usuario
+>>> user.perfil_usuario.rol.permisos_entidad.all()
+
+================================================================================
+PRÓXIMOS PASOS
+================================================================================
+
+Después de instalar y probar:
+
+1. □ Cambiar contraseña del admin
+2. □ Crear usuarios específicos para cada persona
+3. □ Probar con roles diferentes (supervisor, operador)
+4. □ Verificar permisos en el frontend
+5. □ Implementar verificación de permisos en vistas
+6. □ Agregar 2FA (futuro)
+7. □ Implementar multi-empresa (futuro)
+
+================================================================================
+
+✅ Sistema de autenticación instalado y funcionando!
+
+🚀 Próximo comando: python manage.py init_auth_data
+🌐 Luego accede a: http://127.0.0.1:8000/
+🔐 Login: admin / admin123
+
+================================================================================

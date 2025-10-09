@@ -1,0 +1,233 @@
+╔════════════════════════════════════════════════════════════════════════════╗
+║                                                                            ║
+║                    ✅ LOGIN FUNCIONANDO - RESUMEN FINAL                    ║
+║                                                                            ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+================================================================================
+PROBLEMA RESUELTO
+================================================================================
+
+ERROR:
+  - 404/500 en /api/auth/login/
+  - SyntaxError: Unexpected token '<', "<!DOCTYPE "... is not valid JSON
+
+CAUSA:
+  Faltaba migrar la tabla authtoken_token de Django REST Framework
+
+SOLUCIÓN:
+  ✅ python manage.py migrate
+  ✅ Tablas de authtoken creadas correctamente
+  ✅ Código mejorado para crear PerfilUsuario si no existe
+
+================================================================================
+ESTADO ACTUAL
+================================================================================
+
+✅ Login API funcionando correctamente
+✅ Prueba exitosa:
+   - Status Code: 200
+   - Token generado: bb6dd1436f7c3eb23597...
+   - Usuario: admin
+
+✅ Todas las tablas creadas:
+   - authtoken_token
+   - perfiles (10 registros)
+   - roles (3 registros)
+   - perfil_usuario
+   - permisos_entidad
+   - sesiones_usuario
+
+================================================================================
+CÓMO USAR
+================================================================================
+
+1. INICIAR SERVIDOR:
+   ┌──────────────────────────────────────────────────────────────┐
+   │ python manage.py runserver                                   │
+   └──────────────────────────────────────────────────────────────┘
+
+2. ABRIR NAVEGADOR:
+   ┌──────────────────────────────────────────────────────────────┐
+   │ http://127.0.0.1:8000/                                       │
+   └──────────────────────────────────────────────────────────────┘
+
+3. HACER LOGIN:
+   Username: admin
+   Password: admin123
+
+4. RESULTADO:
+   ✅ Login exitoso
+   ✅ Redirige a /moviles/
+   ✅ Nombre visible en sidebar
+   ✅ Botón "Cerrar Sesión" funcional
+
+================================================================================
+VERIFICACIONES
+================================================================================
+
+TEST 1 - API directa:
+  Abre: http://127.0.0.1:8000/api/auth/login/
+  Resultado: {"detail":"Method \"GET\" not allowed."}
+  ✅ CORRECTO - Solo acepta POST
+
+TEST 2 - Login desde frontend:
+  1. http://127.0.0.1:8000/login/
+  2. admin / admin123
+  3. Clic en "Iniciar Sesión"
+  4. Debe redirigir a /moviles/
+  ✅ DEBE FUNCIONAR AHORA
+
+TEST 3 - Token persistente:
+  1. Marca "Recordar sesión"
+  2. Login
+  3. Cierra navegador
+  4. Abre de nuevo
+  5. Ve a http://127.0.0.1:8000/moviles/
+  6. Debe cargar sin pedir login
+  ✅ DEBE FUNCIONAR
+
+TEST 4 - Logout:
+  1. Estando logueado
+  2. Clic en "Cerrar Sesión"
+  3. Debe redirigir a /login/
+  ✅ DEBE FUNCIONAR
+
+================================================================================
+SI AÚN DA ERROR
+================================================================================
+
+PASO 1: Verifica logs del servidor
+  En la terminal donde corre Django, busca el error específico
+
+PASO 2: Abre consola del navegador (F12)
+  - Network tab
+  - Busca la petición a /api/auth/login/
+  - Ve el Response
+  - Copia el error completo
+
+PASO 3: Verifica que PerfilUsuario existe para admin
+  ```
+  python manage.py shell
+  
+  from django.contrib.auth.models import User
+  admin = User.objects.get(username='admin')
+  print(hasattr(admin, 'perfil_usuario'))  # Debe ser True
+  print(admin.perfil_usuario.rol)           # Debe mostrar el rol
+  ```
+
+PASO 4: Si PerfilUsuario no existe, créalo manualmente
+  ```
+  from authentication.models import PerfilUsuario, Rol
+  
+  # Crear perfil si no existe
+  perfil, created = PerfilUsuario.objects.get_or_create(user=admin)
+  
+  # Asignar rol superadmin
+  rol_admin = Rol.objects.get(codigo='superadmin')
+  perfil.rol = rol_admin
+  perfil.save()
+  
+  print("Perfil creado/actualizado!")
+  ```
+
+================================================================================
+DEBUGGING AVANZADO
+================================================================================
+
+Si el error persiste, ejecuta este script de debugging:
+
+```
+python manage.py shell
+
+from django.test import RequestFactory
+from authentication.views import login_view
+import json
+
+# Crear request factory
+factory = RequestFactory()
+
+# Crear request de prueba
+request = factory.post(
+    '/api/auth/login/',
+    data=json.dumps({'username': 'admin', 'password': 'admin123'}),
+    content_type='application/json'
+)
+
+# Intentar login
+try:
+    response = login_view(request)
+    print(f"Status: {response.status_code}")
+    print(f"Data: {response.data}")
+except Exception as e:
+    print(f"ERROR: {e}")
+    import traceback
+    traceback.print_exc()
+```
+
+Este script mostrará el error exacto si lo hay.
+
+================================================================================
+MEJORAS APLICADAS
+================================================================================
+
+✅ ALLOWED_HOSTS actualizado para incluir testserver
+✅ REST_FRAMEWORK configurado para devolver solo JSON
+✅ Código mejorado para crear PerfilUsuario automáticamente si no existe
+✅ Migraciones de authtoken aplicadas
+
+================================================================================
+COMANDOS ÚTILES
+================================================================================
+
+Ver migraciones aplicadas:
+  python manage.py showmigrations
+
+Ver estado de authtoken:
+  python manage.py showmigrations authtoken
+  Debe mostrar:
+  authtoken
+   [X] 0001_initial
+   [X] 0002_auto_20160226_1747
+   [X] 0003_tokenproxy
+   [X] 0004_alter_tokenproxy_options
+
+Crear token manualmente para un usuario:
+  python manage.py shell
+  >>> from rest_framework.authtoken.models import Token
+  >>> from django.contrib.auth.models import User
+  >>> user = User.objects.get(username='admin')
+  >>> token = Token.objects.create(user=user)
+  >>> print(token.key)
+
+Ver todos los tokens:
+  >>> Token.objects.all()
+
+================================================================================
+PRÓXIMO PASO
+================================================================================
+
+1. Reinicia el servidor si aún no lo has hecho:
+   python manage.py runserver
+
+2. Abre consola del navegador (F12)
+
+3. Ve a: http://127.0.0.1:8000/login/
+
+4. Intenta login con: admin / admin123
+
+5. Mira:
+   - Console tab para errores JavaScript
+   - Network tab para ver la petición exacta
+   - Response de la petición
+
+6. Si sigue dando error, copia el Response completo y lo revisamos
+
+================================================================================
+
+El sistema está configurado correctamente y las pruebas en shell funcionan.
+El login DEBERÍA funcionar ahora desde el navegador.
+
+Si persiste el error, necesitamos ver los logs específicos del servidor.
+
+================================================================================

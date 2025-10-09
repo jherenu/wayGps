@@ -1,0 +1,212 @@
+╔════════════════════════════════════════════════════════════════════════════╗
+║                                                                            ║
+║              ✅ ERROR 403 FORBIDDEN - AUTENTICACIÓN AGREGADA               ║
+║                                                                            ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+================================================================================
+PROBLEMA RESUELTO
+================================================================================
+
+ERROR:
+  PUT http://127.0.0.1:8000/api/moviles/11/ 403 (Forbidden)
+  Error al guardar móvil: Error HTTP: 403
+
+CAUSA:
+  Las peticiones a la API no incluían el token de autenticación.
+  Django REST Framework requiere autenticación para operaciones de escritura.
+
+SOLUCIÓN:
+  ✅ Agregado token de autenticación en todas las peticiones
+  ✅ Usando auth.getHeaders() para incluir el token automáticamente
+
+================================================================================
+CAMBIOS APLICADOS
+================================================================================
+
+📄 static/js/moviles.js - 3 funciones actualizadas:
+
+1️⃣  loadMoviles() - Cargar datos:
+   ANTES:
+   const response = await fetch(MOVILES_API_URL);
+   
+   DESPUÉS:
+   const headers = auth.getHeaders();
+   const response = await fetch(MOVILES_API_URL, { headers });
+
+2️⃣  guardarMovil() - Crear/Editar:
+   ANTES:
+   headers: { 'Content-Type': 'application/json' }
+   
+   DESPUÉS:
+   headers: auth.getHeaders()
+
+3️⃣  eliminarMovil() - Eliminar:
+   ANTES:
+   method: 'DELETE'
+   
+   DESPUÉS:
+   method: 'DELETE',
+   headers: auth.getHeaders()
+
+📄 wayproject/settings.py - Permisos actualizados:
+   
+   REST_FRAMEWORK['DEFAULT_PERMISSION_CLASSES']:
+   'IsAuthenticatedOrReadOnly'  # Requiere auth para escribir
+
+================================================================================
+CÓMO FUNCIONA
+================================================================================
+
+auth.getHeaders() retorna:
+
+SIN AUTENTICACIÓN:
+{
+  'Content-Type': 'application/json'
+}
+
+CON AUTENTICACIÓN:
+{
+  'Content-Type': 'application/json',
+  'Authorization': 'Token bb6dd1436f7c3eb2359797078eb2a81a619d122e'
+}
+
+El backend ve el header Authorization y:
+  ✅ Identifica al usuario
+  ✅ Verifica permisos
+  ✅ Permite la operación si tiene permisos
+
+================================================================================
+PERMISOS EN LA API
+================================================================================
+
+OPERACIÓN    SIN AUTH    CON AUTH (Usuario Normal)    CON AUTH (Superusuario)
+────────────────────────────────────────────────────────────────────────────
+GET (Ver)    ✅ Permitido    ✅ Permitido              ✅ Permitido
+POST (Crear) ❌ 403         ✅ Permitido (si tiene rol) ✅ Permitido
+PUT (Editar) ❌ 403         ✅ Permitido (si tiene rol) ✅ Permitido
+DELETE       ❌ 403         ✅ Permitido (si tiene rol) ✅ Permitido
+
+IsAuthenticatedOrReadOnly significa:
+  - Lectura (GET): Cualquiera
+  - Escritura (POST/PUT/DELETE): Solo autenticados
+
+================================================================================
+VERIFICAR QUE FUNCIONA
+================================================================================
+
+1. Recarga la página: F5 o Ctrl+R
+
+2. Intenta editar un móvil:
+   - Clic en ícono de lápiz
+   - Modifica algún campo
+   - Clic en "Guardar"
+   - ✅ Debe guardar correctamente
+
+3. Intenta crear un móvil:
+   - Clic en "Nuevo Móvil"
+   - Completa formulario
+   - Clic en "Guardar"
+   - ✅ Debe crear correctamente
+
+4. Verifica consola (F12):
+   - Network tab
+   - Busca peticiones a /api/moviles/
+   - Request Headers debe incluir:
+     Authorization: Token bb6dd1436...
+
+================================================================================
+RESPUESTA PAGINADA
+================================================================================
+
+También se corrigió el manejo de respuestas paginadas:
+
+ANTES (Django devolvía array directo):
+[
+  { id: 1, patente: "ABC123", ... },
+  { id: 2, patente: "XYZ789", ... }
+]
+
+AHORA (Django devuelve paginado):
+{
+  "count": 3,
+  "next": null,
+  "previous": null,
+  "results": [
+    { id: 1, patente: "ABC123", ... },
+    { id: 2, patente: "XYZ789", ... }
+  ]
+}
+
+El código ahora detecta ambos formatos automáticamente.
+
+================================================================================
+SOLUCIÓN DE PROBLEMAS
+================================================================================
+
+PROBLEMA: Sigue dando 403
+SOLUCIÓN:
+  1. Verifica que estés logueado
+  2. Abre consola (F12) > Application
+  3. localStorage o sessionStorage
+  4. Busca "authToken"
+  5. Debe existir y tener un valor
+  6. Si no existe, vuelve a hacer login
+
+PROBLEMA: "movilesData is undefined"
+SOLUCIÓN:
+  1. Limpia cache: Ctrl+Shift+R
+  2. Verifica que static/js/moviles.js esté actualizado
+  3. Verifica que auth.js se cargue ANTES que moviles.js
+
+PROBLEMA: Token inválido
+SOLUCIÓN:
+  1. Cierra sesión
+  2. Vuelve a hacer login
+  3. Nuevo token se generará
+
+PROBLEMA: No puede leer móviles
+SOLUCIÓN:
+  1. Verifica permisos del usuario
+  2. El rol debe tener permiso de ver en móviles
+  3. O ser superusuario
+
+================================================================================
+ARCHIVOS MODIFICADOS
+================================================================================
+
+✅ static/js/moviles.js
+   - loadMoviles(): Agregado headers con token
+   - guardarMovil(): Agregado headers con token
+   - eliminarMovil(): Agregado headers con token
+   - Manejo de respuestas paginadas
+
+✅ wayproject/settings.py
+   - REST_FRAMEWORK['DEFAULT_PERMISSION_CLASSES']
+   - IsAuthenticatedOrReadOnly
+
+================================================================================
+PRÓXIMO PASO
+================================================================================
+
+1. Recarga la página: Ctrl+Shift+R
+
+2. Verifica en consola (F12) que:
+   - Cargados 3 móviles
+   - Sin errores
+
+3. Prueba editar un móvil:
+   - Debe funcionar sin error 403
+   - Debe guardar correctamente
+
+4. Prueba crear un móvil:
+   - Debe funcionar sin error 403
+   - Debe aparecer en la lista
+
+================================================================================
+
+✅ Autenticación agregada a todas las peticiones!
+🔄 Recarga la página: Ctrl + Shift + R
+🎉 ¡El sistema completo debería funcionar ahora!
+
+================================================================================

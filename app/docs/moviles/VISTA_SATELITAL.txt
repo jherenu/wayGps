@@ -1,0 +1,381 @@
+╔════════════════════════════════════════════════════════════════════════════╗
+║                                                                            ║
+║                  ✅ VISTA SATELITAL AGREGADA A LOS MAPAS                   ║
+║                                                                            ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+================================================================================
+NUEVA FUNCIONALIDAD
+================================================================================
+
+Ahora los mapas (Dashboard y Principal) tienen un SELECTOR DE CAPAS con 3 opciones:
+
+1. 🗺️  CALLES (OpenStreetMap)
+   - Vista de calles tradicional
+   - Ideal para ver nombres de calles y rutas
+   - Por defecto al cargar
+
+2. 🛰️  SATÉLITE (Esri World Imagery)
+   - Vista satelital real
+   - Imágenes de alta resolución
+   - Sin etiquetas de calles
+
+3. 🌍  HÍBRIDO (Satélite + Etiquetas)
+   - Vista satelital con nombres de calles superpuestos
+   - Lo mejor de ambos mundos
+   - Útil para orientación
+
+================================================================================
+CÓMO USAR
+================================================================================
+
+1. Abre el mapa (Dashboard o sección "Mapa")
+
+2. En la esquina superior derecha verás un ícono de capas: 📄
+
+3. Haz clic en el ícono
+
+4. Selecciona la vista que prefieres:
+   - 🗺️ Calles
+   - 🛰️ Satélite
+   - 🌍 Híbrido
+
+5. El mapa cambiará automáticamente
+
+================================================================================
+UBICACIÓN DEL CONTROL
+================================================================================
+
+El control de capas aparece en:
+  📍 Esquina superior derecha de cada mapa
+  
+Aspecto visual:
+  ┌──────┐
+  │ 📄   │  ← Ícono de capas
+  └──────┘
+
+Al hacer clic:
+  ┌─────────────────┐
+  │ ○ 🗺️ Calles     │  ← Seleccionado
+  │ ○ 🛰️ Satélite   │
+  │ ○ 🌍 Híbrido    │
+  └─────────────────┘
+
+================================================================================
+PROVEEDORES DE MAPAS
+================================================================================
+
+CALLES:
+  Proveedor: OpenStreetMap
+  URL: https://tile.openstreetmap.org
+  Licencia: © OpenStreetMap contributors
+  Max Zoom: 19
+
+SATÉLITE:
+  Proveedor: Esri World Imagery
+  URL: https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery
+  Licencia: © Esri
+  Max Zoom: 19
+  Fuente: Imágenes satelitales de alta resolución
+
+HÍBRIDO:
+  Capa base: Esri World Imagery (satélite)
+  Capa superior: CartoDB Labels (etiquetas)
+  Combinación de ambas capas
+
+================================================================================
+IMPLEMENTACIÓN TÉCNICA
+================================================================================
+
+CÓDIGO EN moviles.js:
+
+```javascript
+// Crear capas de mapa
+const streetLayer = L.tileLayer(
+    'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    { attribution: '© OpenStreetMap contributors', maxZoom: 19 }
+);
+
+const satelliteLayer = L.tileLayer(
+    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    { attribution: '© Esri', maxZoom: 19 }
+);
+
+const hybridLayer = L.tileLayer(
+    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    { attribution: '© Esri', maxZoom: 19 }
+);
+
+const labelsLayer = L.tileLayer(
+    'https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}.png',
+    { attribution: '© CartoDB', maxZoom: 19 }
+);
+
+// Agregar capa por defecto
+streetLayer.addTo(map);
+
+// Control de capas
+const baseLayers = {
+    "🗺️ Calles": streetLayer,
+    "🛰️ Satélite": satelliteLayer,
+    "🌍 Híbrido": L.layerGroup([hybridLayer, labelsLayer])
+};
+
+L.control.layers(baseLayers).addTo(map);
+```
+
+================================================================================
+PERSONALIZACIÓN
+================================================================================
+
+CAMBIAR CAPA POR DEFECTO:
+
+Busca en moviles.js:
+```javascript
+streetLayer.addTo(mapaDashboard);  // ← Cambiar a satelliteLayer
+```
+
+AGREGAR MÁS PROVEEDORES:
+
+Puedes agregar otros proveedores de tiles:
+
+GOOGLE MAPS (requiere API key):
+```javascript
+const googleStreets = L.tileLayer(
+    'http://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+    { maxZoom: 20, subdomains:['mt0','mt1','mt2','mt3'] }
+);
+```
+
+MAPBOX (requiere API key):
+```javascript
+const mapboxSatellite = L.tileLayer(
+    'https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}',
+    {
+        id: 'mapbox/satellite-v9',
+        accessToken: 'TU_ACCESS_TOKEN_AQUI'
+    }
+);
+```
+
+CARTO DARK (oscuro):
+```javascript
+const darkLayer = L.tileLayer(
+    'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+    { attribution: '© CartoDB' }
+);
+```
+
+CAMBIAR POSICIÓN DEL CONTROL:
+
+```javascript
+L.control.layers(baseLayers, null, {
+    position: 'topleft'    // topleft, topright, bottomleft, bottomright
+}).addTo(map);
+```
+
+CAMBIAR ICONOS/EMOJIS:
+
+Edita los nombres en baseLayers:
+```javascript
+const baseLayers = {
+    "🏙️ Urbano": streetLayer,
+    "📸 Satélite": satelliteLayer,
+    "🗺️ Mixto": L.layerGroup([hybridLayer, labelsLayer])
+};
+```
+
+================================================================================
+VENTAJAS DE CADA VISTA
+================================================================================
+
+🗺️  CALLES:
+  ✓ Nombres de calles visibles
+  ✓ Rutas y carreteras marcadas
+  ✓ POIs (puntos de interés)
+  ✓ Menor consumo de datos
+  ✓ Carga más rápida
+
+🛰️  SATÉLITE:
+  ✓ Vista real del terreno
+  ✓ Identificar edificios
+  ✓ Ver vegetación
+  ✓ Terreno rural/urbano
+  ✓ Más inmersivo
+
+🌍  HÍBRIDO:
+  ✓ Lo mejor de ambos
+  ✓ Vista satelital real
+  ✓ Nombres de calles
+  ✓ Orientación precisa
+  ✓ Contexto completo
+
+================================================================================
+CASOS DE USO
+================================================================================
+
+USA CALLES CUANDO:
+- Necesites ver nombres de calles
+- Busques una dirección específica
+- Planifiques rutas urbanas
+- Quieras menor consumo de datos
+
+USA SATÉLITE CUANDO:
+- Necesites ver el terreno real
+- Trabajes en zonas rurales
+- Quieras identificar edificios específicos
+- Necesites contexto visual del área
+
+USA HÍBRIDO CUANDO:
+- Necesites ambas funcionalidades
+- Trabajes en zonas mixtas (urbano/rural)
+- Quieras máxima información
+- Orientes vehículos por radio
+
+================================================================================
+RENDIMIENTO Y CONSIDERACIONES
+================================================================================
+
+CONSUMO DE DATOS:
+  Calles:    ~100KB por tile
+  Satélite:  ~150-200KB por tile
+  Híbrido:   ~250-300KB por tile (dos capas)
+
+VELOCIDAD DE CARGA:
+  Calles:    ⚡⚡⚡ Rápido
+  Satélite:  ⚡⚡ Medio
+  Híbrido:   ⚡ Más lento
+
+COMPATIBILIDAD:
+  ✓ Todos los navegadores modernos
+  ✓ Móviles y tablets
+  ✓ Sin necesidad de plugins
+
+OFFLINE:
+  ✗ Requiere conexión a internet
+  💡 Para uso offline, considera implementar cache de tiles
+
+================================================================================
+LIMITACIONES Y RESOLUCIÓN
+================================================================================
+
+LÍMITE DE ZOOM:
+  - Máximo zoom nivel 19
+  - Esri puede tener restricciones por región
+  - OpenStreetMap siempre disponible
+
+COBERTURA:
+  - OpenStreetMap: Mundial
+  - Esri Satellite: Mundial (mejor en áreas urbanas)
+  - CartoDB Labels: Mundial
+
+ACTUALIZACIONES:
+  - OpenStreetMap: Actualizaciones frecuentes
+  - Esri Satellite: Actualizado anualmente
+  - Calidad varía según región
+
+================================================================================
+SOLUCIÓN DE PROBLEMAS
+================================================================================
+
+PROBLEMA: No se ven las imágenes satelitales
+SOLUCIÓN:
+  1. Verifica conexión a internet
+  2. Revisa consola del navegador (F12) para errores
+  3. Esri puede tener límites de uso, prueba más tarde
+  4. Verifica firewall/proxy
+
+PROBLEMA: Las etiquetas del híbrido no se ven
+SOLUCIÓN:
+  1. Espera unos segundos, carga más lenta
+  2. Verifica zoom, algunas etiquetas solo en ciertos niveles
+  3. Refresca página (F5)
+
+PROBLEMA: Control de capas no aparece
+SOLUCIÓN:
+  1. Limpia cache del navegador (Ctrl+Shift+R)
+  2. Verifica que static/js/moviles.js esté actualizado
+  3. Revisa consola para errores de JavaScript
+
+PROBLEMA: Tiles no cargan o se ven rotos
+SOLUCIÓN:
+  1. Problema temporal del proveedor, espera
+  2. Cambia a otra capa
+  3. Verifica URL del tile provider
+
+================================================================================
+ARCHIVOS MODIFICADOS
+================================================================================
+
+📄 static/js/moviles.js
+   - initializeMaps(): Agregado control de capas
+   - initializeMapaPrincipal(): Agregado control de capas
+   - Nueva variable: baseLayers (para dashboard)
+
+📄 No se requieren cambios en CSS
+   - Leaflet.js maneja el estilo del control automáticamente
+
+================================================================================
+MEJORAS FUTURAS POSIBLES
+================================================================================
+
+💡 Sugerencias:
+
+1. RECORDAR PREFERENCIA DEL USUARIO:
+   ```javascript
+   // Guardar en localStorage
+   localStorage.setItem('preferred_layer', 'satellite');
+   
+   // Cargar preferencia
+   const preferred = localStorage.getItem('preferred_layer');
+   ```
+
+2. CAPAS ADICIONALES:
+   - Capa de tráfico en tiempo real
+   - Capa de clima
+   - Capa de relieve/topográfico
+
+3. TILES OFFLINE:
+   - Implementar cache de tiles
+   - Usar Service Workers
+   - Precarga de áreas específicas
+
+4. OVERLAYS (capas superiores):
+   - Zonas de cobertura
+   - Geocercas
+   - Rutas planificadas
+
+================================================================================
+PROVEEDORES ALTERNATIVOS
+================================================================================
+
+Si necesitas cambiar proveedores:
+
+MAPBOX (requiere cuenta):
+  https://www.mapbox.com/
+  Excelente calidad, personalizables
+
+GOOGLE MAPS (requiere API key):
+  https://developers.google.com/maps
+  Más conocido, buena cobertura
+
+THUNDERFOREST (requiere API key):
+  https://www.thunderforest.com/
+  Estilos variados
+
+HERE MAPS (requiere API key):
+  https://developer.here.com/
+  Bueno para routing
+
+STADIA MAPS (gratis con límites):
+  https://stadiamaps.com/
+  Varios estilos gratuitos
+
+================================================================================
+
+✅ Vista satelital agregada correctamente!
+🔄 Recarga la página: Ctrl + Shift + R
+🗺️ Cambia entre vistas usando el control en la esquina superior derecha
+✨ ¡Explora tus móviles con vista satelital!
+
+================================================================================

@@ -1,0 +1,187 @@
+╔════════════════════════════════════════════════════════════════════════════╗
+║                                                                            ║
+║          FIX: CHECK CONSTRAINT EN CAMPO ESTADO                            ║
+║                                                                            ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+================================================================================
+PROBLEMA
+================================================================================
+
+ERROR:
+django.db.utils.IntegrityError: new row for relation "equipos_gps" violates 
+check constraint "equipos_gps_estado_check"
+
+DETAIL: Failing row contains (..., stock, ...)
+
+CAUSA:
+La tabla tiene una restricción CHECK que solo permite ciertos valores en la
+columna estado, pero el frontend estaba enviando 'stock' que NO está permitido.
+
+================================================================================
+RESTRICCIÓN CHECK ENCONTRADA
+================================================================================
+
+Nombre: equipos_gps_estado_check
+
+Definición:
+CHECK (estado IN ('activo', 'inactivo', 'mantenimiento', 'baja'))
+
+VALORES PERMITIDOS:
+  ✓ 'activo'         - Equipo operativo en uso
+  ✓ 'inactivo'       - Equipo sin asignar (en stock)
+  ✓ 'mantenimiento'  - Equipo en reparación
+  ✓ 'baja'           - Equipo dado de baja
+
+VALORES NO PERMITIDOS:
+  ❌ 'stock'          - NO existe en la restricción
+  ❌ 'operativo'      - NO existe (se usa 'activo')
+  ❌ cualquier otro
+
+================================================================================
+SOLUCIÓN APLICADA
+================================================================================
+
+1. FORMULARIO HTML (templates/equipos/index.html):
+
+ANTES:
+```html
+<select class="form-select" id="estado">
+    <option value="stock">En Stock</option>         ❌
+    <option value="operativo">Operativo</option>    ❌
+    <option value="mantenimiento">En Mantenimiento</option>
+    <option value="baja">Dado de Baja</option>
+</select>
+```
+
+DESPUÉS:
+```html
+<select class="form-select" id="estado">
+    <option value="inactivo">Inactivo (En Stock)</option>        ✓
+    <option value="activo">Activo (Operativo)</option>           ✓
+    <option value="mantenimiento">En Mantenimiento</option>      ✓
+    <option value="baja">Dado de Baja</option>                   ✓
+</select>
+```
+
+2. FILTRO (templates/equipos/index.html):
+
+ANTES:
+```html
+<option value="operativo">Operativo</option>
+<option value="stock">En Stock</option>
+```
+
+DESPUÉS:
+```html
+<option value="activo">Activo</option>
+<option value="inactivo">Inactivo</option>
+```
+
+3. JAVASCRIPT (static/js/equipos.js):
+
+a) Valor por defecto:
+```javascript
+// ANTES:
+estado: document.getElementById('estado').value || 'stock'
+
+// DESPUÉS:
+estado: document.getElementById('estado').value || 'inactivo'
+```
+
+b) Badges:
+```javascript
+switch(equipo.estado) {
+    case 'activo':        // En vez de 'operativo'
+        estadoBadge = '<span class="badge badge-operativo">Activo</span>';
+        break;
+    case 'inactivo':      // En vez de 'stock'
+        estadoBadge = '<span class="badge badge-stock">Inactivo</span>';
+        break;
+    case 'mantenimiento':
+        estadoBadge = '<span class="badge badge-mantenimiento">Mantenimiento</span>';
+        break;
+    case 'baja':
+        estadoBadge = '<span class="badge badge-baja">Baja</span>';
+        break;
+}
+```
+
+================================================================================
+MAPEO DE VALORES
+================================================================================
+
+FRONTEND (usuario ve)          →  BACKEND (valor en BD)
+─────────────────────────────────────────────────────────
+"Inactivo (En Stock)"          →  'inactivo'
+"Activo (Operativo)"           →  'activo'
+"En Mantenimiento"             →  'mantenimiento'
+"Dado de Baja"                 →  'baja'
+
+================================================================================
+COLORES DE BADGES
+================================================================================
+
+Estado         Color      Badge Class
+────────────────────────────────────────
+activo         Verde      badge-operativo
+inactivo       Gris       badge-stock
+mantenimiento  Amarillo   badge-mantenimiento
+baja           Rojo       badge-baja
+
+================================================================================
+VALIDACIÓN EN DJANGO (FUTURO)
+================================================================================
+
+Si quieres agregar validación en el modelo:
+
+```python
+class Equipo(models.Model):
+    ESTADO_CHOICES = [
+        ('activo', 'Activo'),
+        ('inactivo', 'Inactivo'),
+        ('mantenimiento', 'Mantenimiento'),
+        ('baja', 'Baja'),
+    ]
+    
+    estado = models.CharField(
+        max_length=20,
+        choices=ESTADO_CHOICES,
+        default='inactivo',
+        null=True,
+        blank=True
+    )
+```
+
+NOTA: Como managed=False, esto es solo para validación en Django,
+no cambia la restricción CHECK de la base de datos.
+
+================================================================================
+AHORA DEBERÍA FUNCIONAR
+================================================================================
+
+1. El navegador ya debe estar mostrando la página actualizada
+   (puedes hacer Ctrl+F5 para forzar recarga)
+
+2. Crea un equipo de prueba:
+   - IMEI: 123456789012345
+   - Marca: Teltonika
+   - Modelo: FMB920
+   - Estado: "Inactivo (En Stock)"  ← Ahora usará 'inactivo' ✓
+   - Guardar
+
+3. El equipo se creará correctamente en equipos_gps
+
+4. Verás el badge gris "Inactivo"
+
+================================================================================
+
+✅ Frontend actualizado con valores correctos del CHECK constraint!
+
+🔧 Valores alineados con la restricción de la base de datos
+✅ Ya no enviará valores no permitidos
+🚀 Listo para crear equipos
+
+Recarga la página (Ctrl+F5) y prueba crear tu primer equipo!
+
+================================================================================

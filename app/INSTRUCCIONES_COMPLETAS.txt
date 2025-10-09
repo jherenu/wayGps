@@ -1,0 +1,576 @@
+================================================================================
+                    WAYGPS - FRONTEND PARA SISTEMA GPS
+              INSTRUCCIONES COMPLETAS DE INSTALACIÓN Y USO
+================================================================================
+
+FECHA: 8 de Octubre, 2025
+VERSIÓN: 1.0
+
+================================================================================
+TABLA DE CONTENIDOS
+================================================================================
+
+1. DESCRIPCIÓN DEL SISTEMA
+2. ARCHIVOS INCLUIDOS
+3. REQUISITOS PREVIOS
+4. INSTALACIÓN PASO A PASO
+5. SOLUCIÓN AL ERROR DE CORS
+6. USO DEL SISTEMA
+7. PERSONALIZACIÓN
+8. SOLUCIÓN DE PROBLEMAS
+9. SOPORTE Y CONTACTO
+
+================================================================================
+1. DESCRIPCIÓN DEL SISTEMA
+================================================================================
+
+WayGPS Frontend es una interfaz web moderna y completa que se conecta a tu 
+API REST de Django para gestionar móviles con GPS en tiempo real.
+
+CARACTERÍSTICAS PRINCIPALES:
+✓ Dashboard con estadísticas en tiempo real
+✓ Gestión completa de móviles (CRUD)
+✓ Mapas interactivos con ubicaciones GPS
+✓ Filtros y búsquedas avanzadas
+✓ Actualización automática cada 30 segundos
+✓ Diseño responsivo para móviles y tablets
+✓ Interfaz moderna con Bootstrap 5
+
+================================================================================
+2. ARCHIVOS INCLUIDOS
+================================================================================
+
+Frontend:
+  index.html              - Página principal del frontend
+  app.js                  - Lógica JavaScript completa
+  styles.css              - Estilos personalizados
+  config.js               - Archivo de configuración
+
+Backend (Django):
+  requirements.txt        - Dependencias actualizadas
+  wayproject/settings.py  - Configuración con CORS
+
+Documentación:
+  README.md                    - Documentación principal
+  INSTALACION_CORS.md          - Guía de configuración CORS
+  INSTRUCCIONES_COMPLETAS.txt  - Este archivo
+  instalar_cors.bat            - Script de instalación (Windows)
+
+================================================================================
+3. REQUISITOS PREVIOS
+================================================================================
+
+BACKEND (Django):
+- Python 3.8 o superior
+- Django 5.2.7
+- PostgreSQL con PostGIS
+- Django REST Framework
+- API corriendo en http://127.0.0.1:8000
+
+FRONTEND:
+- Navegador web moderno (Chrome, Firefox, Edge, Safari)
+- Conexión a internet (para cargar librerías CDN)
+
+OPCIONAL:
+- Visual Studio Code con Live Server
+- Python http.server
+- Node.js con http-server
+
+================================================================================
+4. INSTALACIÓN PASO A PASO
+================================================================================
+
+PASO 1: UBICAR LOS ARCHIVOS
+----------------------------
+Asegúrate de que los archivos estén en tu carpeta del proyecto:
+C:\desa\wayGps\app\
+
+PASO 2: INSTALAR DJANGO-CORS-HEADERS
+------------------------------------
+Abre una terminal (PowerShell o CMD) en la carpeta del proyecto:
+
+  cd C:\desa\wayGps\app
+
+Instala el paquete necesario:
+
+  pip install django-cors-headers
+
+O instala todas las dependencias:
+
+  pip install -r requirements.txt
+
+PASO 3: VERIFICAR CONFIGURACIÓN DE DJANGO
+-----------------------------------------
+Los archivos ya están configurados correctamente:
+
+✓ requirements.txt - Incluye django-cors-headers==4.6.0
+✓ settings.py - Configuración CORS completa
+
+NO NECESITAS MODIFICAR NADA, ya está listo.
+
+PASO 4: REINICIAR EL SERVIDOR DJANGO
+------------------------------------
+Si tu servidor Django está corriendo:
+1. Presiona Ctrl+C para detenerlo
+2. Reinícialo con:
+
+  python manage.py runserver
+
+Deberías ver:
+
+  Starting development server at http://127.0.0.1:8000/
+  Quit the server with CTRL-BREAK.
+
+PASO 5: ABRIR EL FRONTEND
+-------------------------
+Opción A - Abrir directamente (más simple):
+  1. Navega a: C:\desa\wayGps\app\
+  2. Doble clic en index.html
+  3. Se abrirá en tu navegador predeterminado
+
+Opción B - Usar Live Server (VS Code):
+  1. Abre la carpeta en VS Code
+  2. Clic derecho en index.html
+  3. "Open with Live Server"
+  4. Se abrirá en http://localhost:5500
+
+Opción C - Usar servidor Python:
+  1. En terminal: python -m http.server 8080
+  2. Abre: http://localhost:8080
+
+PASO 6: VERIFICAR QUE FUNCIONE
+------------------------------
+✓ Dashboard muestra estadísticas
+✓ No hay errores en la consola del navegador (F12)
+✓ Mapa se carga correctamente
+✓ Lista de móviles se muestra
+
+================================================================================
+5. SOLUCIÓN AL ERROR DE CORS
+================================================================================
+
+ERROR COMÚN:
+"Access to fetch at 'http://127.0.0.1:8000/api/moviles/' from origin 'null' 
+has been blocked by CORS policy"
+
+CAUSA:
+El navegador bloquea peticiones entre diferentes orígenes por seguridad.
+
+SOLUCIÓN PASO A PASO:
+--------------------
+
+1. INSTALAR DJANGO-CORS-HEADERS:
+
+   En terminal (carpeta del proyecto):
+   
+   pip install django-cors-headers
+
+   O ejecuta el script incluido:
+   
+   instalar_cors.bat
+
+2. VERIFICAR SETTINGS.PY:
+
+   El archivo ya está configurado con:
+   
+   INSTALLED_APPS = [
+       ...
+       'corsheaders',
+       ...
+   ]
+   
+   MIDDLEWARE = [
+       ...
+       'corsheaders.middleware.CorsMiddleware',
+       ...
+   ]
+   
+   CORS_ALLOW_ALL_ORIGINS = True
+   CORS_ALLOW_CREDENTIALS = True
+
+3. REINICIAR SERVIDOR DJANGO:
+
+   Ctrl+C (detener)
+   python manage.py runserver (iniciar)
+
+4. RECARGAR FRONTEND:
+
+   F5 en el navegador o reabrir index.html
+
+5. VERIFICAR:
+
+   ✓ No hay errores CORS en consola (F12)
+   ✓ Datos se cargan correctamente
+   ✓ Puedes crear/editar/eliminar móviles
+
+IMPORTANTE: 
+La configuración actual (CORS_ALLOW_ALL_ORIGINS = True) es para DESARROLLO.
+En producción debes cambiarla a orígenes específicos.
+
+================================================================================
+6. USO DEL SISTEMA
+================================================================================
+
+DASHBOARD
+---------
+Vista principal del sistema con:
+- Total de móviles en el sistema
+- Móviles en línea (actualizados en últimos 15 minutos)
+- Móviles con encendido activo
+- Velocidad promedio de la flota
+- Mapa con ubicaciones en tiempo real
+- Lista de móviles actualizados recientemente
+
+GESTIÓN DE MÓVILES
+------------------
+Sección completa para administrar tu flota:
+
+A) VER LISTA:
+   - Tabla con todos los móviles
+   - Estado (en línea/desconectado)
+   - Información GPS y telemetría
+   - Última actualización
+
+B) FILTRAR:
+   - Por estado (en línea/desconectado)
+   - Por encendido (sí/no)
+   - Por tipo de vehículo
+   - Búsqueda por texto (patente, alias, código)
+
+C) CREAR NUEVO MÓVIL:
+   1. Clic en botón "Nuevo Móvil"
+   2. Completar formulario:
+      - Patente (requerido)
+      - Alias, código, VIN
+      - Marca, modelo, año
+      - GPS ID
+      - Color y tipo de vehículo
+   3. Clic en "Guardar"
+
+D) EDITAR MÓVIL:
+   1. Clic en ícono de lápiz en la fila del móvil
+   2. Modificar datos en el formulario
+   3. Clic en "Guardar"
+
+E) VER DETALLES:
+   1. Clic en ícono de ojo
+   2. Ver información completa del móvil
+
+F) ELIMINAR MÓVIL:
+   1. Clic en ícono de basura
+   2. Confirmar eliminación
+
+MAPA INTERACTIVO
+----------------
+Vista de mapa con todas las ubicaciones:
+
+- Marcadores verdes: Móviles en línea
+- Marcadores rojos: Móviles desconectados
+- Clic en marcador: Ver información del móvil
+- Zoom y navegación estándar de mapas
+
+ACTUALIZACIÓN AUTOMÁTICA
+-------------------------
+- El sistema se actualiza cada 30 segundos
+- También puedes hacer clic en "Actualizar" manualmente
+- No necesitas recargar la página
+
+================================================================================
+7. PERSONALIZACIÓN
+================================================================================
+
+CAMBIAR URL DE LA API:
+----------------------
+Edita config.js, línea 6:
+
+  API_BASE_URL: 'http://TU-SERVIDOR:PUERTO/api',
+
+CAMBIAR INTERVALO DE ACTUALIZACIÓN:
+-----------------------------------
+Edita config.js, línea 12:
+
+  AUTO_REFRESH_INTERVAL: 30000,  // En milisegundos (30000 = 30 seg)
+
+CAMBIAR COORDENADAS POR DEFECTO DEL MAPA:
+-----------------------------------------
+Edita config.js, líneas 16-18:
+
+  MAP: {
+      DEFAULT_LAT: -34.6037,    // Tu latitud
+      DEFAULT_LON: -58.3816,    // Tu longitud
+      DEFAULT_ZOOM: 10,
+  }
+
+CAMBIAR TIEMPO PARA CONSIDERAR MÓVIL EN LÍNEA:
+----------------------------------------------
+Edita config.js, línea 32:
+
+  ONLINE_THRESHOLD_MINUTES: 15,  // Minutos
+
+CAMBIAR COLORES:
+---------------
+Edita styles.css o config.js según necesites.
+
+CAMBIAR PROVEEDOR DE MAPAS:
+---------------------------
+Edita config.js, línea 21:
+
+  TILE_PROVIDER: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+
+Opciones populares:
+- OpenStreetMap (actual)
+- Mapbox (requiere API key)
+- Google Maps (requiere API key)
+
+================================================================================
+8. SOLUCIÓN DE PROBLEMAS
+================================================================================
+
+PROBLEMA: "Error al cargar móviles"
+SOLUCIÓN:
+  ✓ Verifica que Django esté corriendo en http://127.0.0.1:8000
+  ✓ Prueba abrir http://127.0.0.1:8000/api/moviles/ en navegador
+  ✓ Revisa que no haya errores en el servidor Django
+
+PROBLEMA: Errores de CORS
+SOLUCIÓN:
+  ✓ Instala django-cors-headers: pip install django-cors-headers
+  ✓ Reinicia el servidor Django
+  ✓ Ver sección 5 de este documento
+
+PROBLEMA: Mapa no se carga
+SOLUCIÓN:
+  ✓ Verifica conexión a internet
+  ✓ Abre consola del navegador (F12) y busca errores
+  ✓ Verifica que Leaflet se cargue correctamente
+
+PROBLEMA: Datos no se actualizan
+SOLUCIÓN:
+  ✓ Verifica que la API devuelva datos válidos
+  ✓ Abre consola (F12) y busca errores JavaScript
+  ✓ Intenta actualización manual con botón "Actualizar"
+
+PROBLEMA: Formulario no guarda
+SOLUCIÓN:
+  ✓ Verifica que CORS esté configurado
+  ✓ Completa al menos el campo "Patente" (requerido)
+  ✓ Revisa consola (F12) para errores específicos
+
+PROBLEMA: "TypeError: Failed to fetch"
+SOLUCIÓN:
+  ✓ Verifica URL en config.js
+  ✓ Asegúrate que Django esté corriendo
+  ✓ Verifica configuración CORS
+
+PROBLEMA: Marcadores no aparecen en mapa
+SOLUCIÓN:
+  ✓ Verifica que los móviles tengan coordenadas (ultimo_lat, ultimo_lon)
+  ✓ Revisa que las coordenadas sean válidas
+  ✓ Abre consola (F12) para ver errores
+
+PROBLEMA: Página en blanco
+SOLUCIÓN:
+  ✓ Verifica que todos los archivos estén en la misma carpeta
+  ✓ Abre consola (F12) para ver qué archivo no se carga
+  ✓ Verifica que config.js se cargue antes de app.js
+
+================================================================================
+9. CARACTERÍSTICAS TÉCNICAS
+================================================================================
+
+TECNOLOGÍAS FRONTEND:
+- HTML5
+- CSS3 con variables personalizadas
+- JavaScript ES6+ (Fetch API, Async/Await)
+- Bootstrap 5.3.0
+- Bootstrap Icons 1.10.0
+- Leaflet 1.9.4 (mapas)
+
+TECNOLOGÍAS BACKEND:
+- Django 5.2.7
+- Django REST Framework 3.16.1
+- PostgreSQL con PostGIS
+- django-cors-headers 4.6.0
+
+COMPATIBILIDAD:
+- Chrome 90+
+- Firefox 88+
+- Edge 90+
+- Safari 14+
+- Opera 76+
+
+DISPOSITIVOS:
+- Desktop (Windows, Mac, Linux)
+- Tablets (iPad, Android)
+- Móviles (iPhone, Android)
+
+SEGURIDAD:
+- CORS configurado (desarrollo)
+- HTTPS recomendado para producción
+- Validación de datos en formularios
+- Manejo de errores robusto
+
+RENDIMIENTO:
+- Carga inicial rápida
+- Actualización eficiente cada 30s
+- Marcadores optimizados en mapa
+- Cache de datos para mejor UX
+
+================================================================================
+10. COMANDOS RÁPIDOS DE REFERENCIA
+================================================================================
+
+INSTALAR DEPENDENCIAS:
+  pip install -r requirements.txt
+
+INICIAR SERVIDOR DJANGO:
+  python manage.py runserver
+
+DETENER SERVIDOR:
+  Ctrl+C
+
+INICIAR SERVIDOR HTTP PYTHON:
+  python -m http.server 8080
+
+INSTALAR CORS:
+  pip install django-cors-headers
+
+VER LOGS DEL NAVEGADOR:
+  F12 > Console
+
+LIMPIAR CACHE DEL NAVEGADOR:
+  Ctrl+Shift+R (recarga forzada)
+
+================================================================================
+11. ESTRUCTURA DE LA API
+================================================================================
+
+ENDPOINT PRINCIPAL:
+  http://127.0.0.1:8000/api/moviles/
+
+MÉTODOS SOPORTADOS:
+
+GET /api/moviles/
+  - Obtener lista de todos los móviles
+  - Respuesta: Array de objetos JSON
+
+POST /api/moviles/
+  - Crear un nuevo móvil
+  - Body: JSON con datos del móvil
+  - Respuesta: Objeto JSON del móvil creado
+
+GET /api/moviles/{id}/
+  - Obtener un móvil específico
+  - Respuesta: Objeto JSON del móvil
+
+PUT /api/moviles/{id}/
+  - Actualizar un móvil completo
+  - Body: JSON con todos los datos
+  - Respuesta: Objeto JSON actualizado
+
+PATCH /api/moviles/{id}/
+  - Actualizar parcialmente un móvil
+  - Body: JSON con campos a actualizar
+  - Respuesta: Objeto JSON actualizado
+
+DELETE /api/moviles/{id}/
+  - Eliminar un móvil
+  - Respuesta: 204 No Content
+
+FORMATO DE DATOS:
+{
+  "id": 1,
+  "codigo": "M001",
+  "alias": "Camión 1",
+  "patente": "ABC123",
+  "gps_id": "GPS001",
+  "ultimo_lat": -34.6037,
+  "ultimo_lon": -58.3816,
+  "ultima_velocidad_kmh": 65.5,
+  "ignicion": true,
+  "bateria_pct": 85.5,
+  "fecha_recepcion": "2024-01-15T10:30:05Z",
+  "activo": true
+}
+
+================================================================================
+12. CHECKLIST DE INSTALACIÓN
+================================================================================
+
+□ Backend Django corriendo en http://127.0.0.1:8000
+□ Endpoint /api/moviles/ responde correctamente
+□ django-cors-headers instalado (pip install django-cors-headers)
+□ Configuración CORS en settings.py
+□ Servidor Django reiniciado
+□ Archivos frontend en la carpeta correcta:
+  □ index.html
+  □ app.js
+  □ styles.css
+  □ config.js
+□ Frontend abierto en navegador
+□ Sin errores CORS en consola (F12)
+□ Dashboard muestra datos
+□ Mapa se carga correctamente
+□ Funciones CRUD funcionan (crear, editar, eliminar)
+
+================================================================================
+13. CONTACTO Y SOPORTE
+================================================================================
+
+DOCUMENTACIÓN:
+- README.md - Documentación principal
+- INSTALACION_CORS.md - Guía específica de CORS
+- Este archivo - Instrucciones completas
+
+ARCHIVOS DE CONFIGURACIÓN:
+- config.js - Personalización del frontend
+- settings.py - Configuración del backend
+
+LOGS Y DEBUG:
+- Consola del navegador (F12) - Errores frontend
+- Terminal Django - Errores backend
+- config.js - Activar DEBUG mode
+
+COMUNIDAD:
+- Django: https://docs.djangoproject.com/
+- Django REST Framework: https://www.django-rest-framework.org/
+- Leaflet: https://leafletjs.com/
+- Bootstrap: https://getbootstrap.com/
+
+================================================================================
+14. NOTAS FINALES
+================================================================================
+
+SEGURIDAD EN PRODUCCIÓN:
+✓ Cambiar CORS_ALLOW_ALL_ORIGINS a orígenes específicos
+✓ Usar HTTPS en lugar de HTTP
+✓ Configurar SECRET_KEY única
+✓ Desactivar DEBUG en settings.py
+✓ Usar variables de entorno para configuración sensible
+
+OPTIMIZACIONES:
+✓ Comprimir archivos JS y CSS
+✓ Usar CDN para librerías
+✓ Implementar cache en backend
+✓ Optimizar queries de base de datos
+
+FUTURAS MEJORAS POSIBLES:
+✓ Autenticación de usuarios
+✓ Exportación de reportes (PDF, Excel)
+✓ Notificaciones en tiempo real
+✓ Historial de rutas
+✓ Alertas personalizadas
+✓ Geocercas (geofencing)
+✓ Gráficos y estadísticas avanzadas
+
+================================================================================
+
+VERSIÓN: 1.0
+FECHA: 8 de Octubre, 2025
+PROYECTO: WayGPS Frontend
+
+© 2025 WayGPS - Sistema de Seguimiento GPS
+
+================================================================================
+                            ¡GRACIAS POR USAR WAYGPS!
+================================================================================

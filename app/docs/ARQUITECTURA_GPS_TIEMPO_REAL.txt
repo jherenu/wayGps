@@ -1,0 +1,1721 @@
+================================================================================
+ARQUITECTURA GPS EN TIEMPO REAL - WAYGPS
+================================================================================
+
+FECHA: 2025-10-09
+VERSIÓN: 1.0
+SISTEMA: Recepción GPS + WebSockets + Actualización de Mapas
+
+================================================================================
+ÍNDICE
+================================================================================
+
+1. RESUMEN EJECUTIVO
+2. ARQUITECTURA GENERAL
+3. COMPONENTES PRINCIPALES
+4. FLUJO DE DATOS
+5. ESTRUCTURA DE ARCHIVOS
+6. MODELOS DE DATOS
+7. IMPLEMENTACIÓN POR COMPONENTES
+8. CONFIGURACIÓN DE PUERTOS
+9. WEBSOCKETS Y TIEMPO REAL
+10. FRONTEND CON MAPAS DINÁMICOS
+11. ESCALABILIDAD Y PERFORMANCE
+12. SEGURIDAD
+13. MONITOREO Y LOGS
+14. PLAN DE IMPLEMENTACIÓN
+15. ANEXOS
+
+================================================================================
+1. RESUMEN EJECUTIVO
+================================================================================
+
+OBJETIVO:
+Implementar un sistema completo para recibir datos GPS de múltiples tipos de
+equipos, procesarlos, almacenarlos y mostrar actualizaciones en tiempo real
+en mapas web usando WebSockets.
+
+ARQUITECTURA PROPUESTA:
+- Receptores TCP/UDP por puerto para cada tipo de equipo
+- Procesadores de datos específicos por fabricante
+- Base de datos con histórico de posiciones
+- WebSockets para actualizaciones en tiempo real
+- Frontend con mapas dinámicos (Leaflet)
+- Sistema escalable y robusto
+
+TECNOLOGÍAS:
+- Django + Django Channels (WebSockets)
+- PostgreSQL + PostGIS (geolocalización)
+- Redis (mensajería)
+- Leaflet.js (mapas frontend)
+- Asyncio (procesamiento asíncrono)
+
+================================================================================
+2. ARQUITECTURA GENERAL
+================================================================================
+
+DIAGRAMA DE ARQUITECTURA:
+
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   EQUIPOS GPS   │    │   EQUIPOS GPS   │    │   EQUIPOS GPS   │
+│   Teltonika     │    │   Queclink      │    │   Genéricos     │
+└─────────┬───────┘    └─────────┬───────┘    └─────────┬───────┘
+          │                      │                      │
+          │ TCP:8080             │ TCP:8081             │ TCP:8082
+          │                      │                      │
+┌─────────▼──────────────────────▼──────────────────────▼───────┐
+│                    RECEPTORES DE DATOS                        │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐           │
+│  │ Teltonika   │  │ Queclink    │  │ Genérico    │           │
+│  │ Receiver    │  │ Receiver    │  │ Receiver    │           │
+│  └─────────────┘  └─────────────┘  └─────────────┘           │
+└─────────────────────┬─────────────────────────────────────────┘
+                      │
+┌─────────────────────▼─────────────────────────────────────────┐
+│                 PROCESADOR CENTRAL                            │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐           │
+│  │ Validación  │  │ Parseo      │  │ Enriquecimiento│        │
+│  │ de Datos    │  │ por Tipo    │  │ de Datos    │           │
+│  └─────────────┘  └─────────────┘  └─────────────┘           │
+└─────────────────────┬─────────────────────────────────────────┘
+                      │
+┌─────────────────────▼─────────────────────────────────────────┐
+│                    ALMACENAMIENTO                             │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐           │
+│  │ PostgreSQL  │  │ Redis       │  │ Archivos    │           │
+│  │ (Histórico) │  │ (Cache)     │  │ Log         │           │
+│  └─────────────┘  └─────────────┘  └─────────────┘           │
+└─────────────────────┬─────────────────────────────────────────┘
+                      │
+┌─────────────────────▼─────────────────────────────────────────┐
+│                 WEBSOCKETS (Django Channels)                  │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐           │
+│  │ GPS Updates │  │ Map Updates │  │ Status      │           │
+│  │ Channel     │  │ Channel     │  │ Channel     │           │
+│  └─────────────┘  └─────────────┘  └─────────────┘           │
+└─────────────────────┬─────────────────────────────────────────┘
+                      │
+┌─────────────────────▼─────────────────────────────────────────┐
+│                    FRONTEND                                   │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐           │
+│  │ Mapas       │  │ Dashboard   │  │ Monitoreo   │           │
+│  │ Tiempo Real │  │ Estadísticas│  │ Sistema     │           │
+│  └─────────────┘  └─────────────┘  └─────────────┘           │
+└───────────────────────────────────────────────────────────────┘
+
+================================================================================
+3. COMPONENTES PRINCIPALES
+================================================================================
+
+3.1 RECEPTORES DE DATOS (Data Receivers)
+----------------------------------------
+FUNCIÓN: Escuchar en puertos específicos y recibir datos de equipos GPS
+
+CARACTERÍSTICAS:
+- Protocolo TCP/UDP configurable
+- Manejo de múltiples conexiones simultáneas
+- Reconocimiento automático de tipo de equipo
+- Buffer de datos para manejar picos de tráfico
+- Reconexión automática en caso de fallos
+
+IMPLEMENTACIÓN:
+- Servidores asíncronos usando asyncio
+- Pool de workers para procesamiento paralelo
+- Configuración por tipo de equipo
+- Logging detallado de conexiones
+
+3.2 PROCESADORES DE DATOS (Data Processors)
+-------------------------------------------
+FUNCIÓN: Interpretar y validar datos GPS según el protocolo del fabricante
+
+CARACTERÍSTICAS:
+- Parsers específicos por fabricante
+- Validación de integridad de datos
+- Normalización de formatos
+- Detección de datos corruptos o inválidos
+- Enriquecimiento con metadatos
+
+IMPLEMENTACIÓN:
+- Factory pattern para diferentes tipos de procesadores
+- Validadores de formato y rango
+- Cache de configuraciones de equipos
+- Estadísticas de procesamiento
+
+3.3 GESTOR DE POSICIONES (Position Manager)
+------------------------------------------
+FUNCIÓN: Actualizar posiciones actuales y mantener histórico
+
+CARACTERÍSTICAS:
+- Actualización de tabla moviles en tiempo real
+- Almacenamiento en tabla posiciones_historicas
+- Optimización de consultas geográficas
+- Compresión de datos históricos
+- Limpieza automática de datos antiguos
+
+IMPLEMENTACIÓN:
+- Transacciones atómicas para consistencia
+- Índices espaciales para performance
+- Batch processing para alta carga
+- Triggers de base de datos para validaciones
+
+3.4 SISTEMA DE WEBSOCKETS (WebSocket System)
+--------------------------------------------
+FUNCIÓN: Comunicación bidireccional en tiempo real con el frontend
+
+CARACTERÍSTICAS:
+- Canales específicos por tipo de actualización
+- Autenticación y autorización
+- Reconexión automática del cliente
+- Throttling para evitar spam
+- Compresión de mensajes
+
+IMPLEMENTACIÓN:
+- Django Channels con Redis como backend
+- Consumer classes por funcionalidad
+- Middleware de autenticación
+- Rate limiting por usuario
+
+================================================================================
+4. FLUJO DE DATOS
+================================================================================
+
+FLUJO COMPLETO DE UN DATO GPS:
+
+1. RECEPCIÓN
+   Equipo GPS → Puerto TCP/UDP → Receptor específico
+
+2. VALIDACIÓN INICIAL
+   Receptor → Validación básica → Queue de procesamiento
+
+3. PROCESAMIENTO
+   Queue → Parser específico → Validación avanzada → Datos normalizados
+
+4. ALMACENAMIENTO
+   Datos normalizados → Transacción DB → Posición actual + Histórico
+
+5. NOTIFICACIÓN
+   Actualización DB → WebSocket → Cliente frontend
+
+6. ACTUALIZACIÓN UI
+   WebSocket → JavaScript → Mapa actualizado
+
+EJEMPLO DETALLADO:
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ FLUJO DE UN DATO GPS TELTONIKA                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+1. EQUIPO GPS TELTONIKA envía:
+   "IMEI: 123456789, LAT: -34.603722, LON: -58.381592, SPD: 45, HDG: 180"
+
+2. RECEPTOR TCP (Puerto 8080) recibe:
+   - Conecta al puerto 8080
+   - Lee datos del socket
+   - Detecta protocolo Teltonika por formato
+   - Pasa a cola de procesamiento
+
+3. PROCESADOR TELTONIKA procesa:
+   - Identifica IMEI: 123456789
+   - Extrae coordenadas: -34.603722, -58.381592
+   - Convierte velocidad: 45 km/h
+   - Valida rumbo: 180°
+   - Añade timestamp de recepción
+
+4. GESTOR DE POSICIONES actualiza:
+   - Busca móvil por IMEI en tabla moviles
+   - Actualiza ultimo_lat, ultimo_lon, ultima_velocidad_kmh
+   - Inserta nueva fila en posiciones_historicas
+   - Confirma transacción
+
+5. WEBSOCKET notifica:
+   - Canal: "gps_updates"
+   - Mensaje: {movil_id: 5, lat: -34.603722, lon: -58.381592, vel: 45}
+   - Envía a todos los clientes suscritos
+
+6. FRONTEND actualiza:
+   - Recibe mensaje WebSocket
+   - Busca marcador del móvil en el mapa
+   - Mueve marcador a nueva posición
+   - Actualiza popup con nueva información
+
+================================================================================
+5. ESTRUCTURA DE ARCHIVOS
+================================================================================
+
+NUEVA ESTRUCTURA PROPUESTA:
+
+waygps/
+├── gps/                                    # App principal GPS
+│   ├── models.py                          # Modelos existentes + nuevos
+│   ├── views.py                           # APIs REST + WebSockets
+│   ├── serializers.py                     # Serializadores
+│   ├── receivers/                         # NUEVO: Receptores de datos
+│   │   ├── __init__.py
+│   │   ├── base_receiver.py               # Clase base abstracta
+│   │   ├── teltonika_receiver.py          # Receptor Teltonika
+│   │   ├── queclink_receiver.py           # Receptor Queclink
+│   │   ├── generic_receiver.py            # Receptor genérico
+│   │   └── port_manager.py                # Gestor de puertos
+│   ├── processors/                        # NUEVO: Procesadores de datos
+│   │   ├── __init__.py
+│   │   ├── base_processor.py              # Clase base abstracta
+│   │   ├── teltonika_processor.py         # Procesador Teltonika
+│   │   ├── queclink_processor.py          # Procesador Queclink
+│   │   ├── generic_processor.py           # Procesador genérico
+│   │   └── data_validator.py              # Validador de datos
+│   ├── managers/                          # NUEVO: Gestores de datos
+│   │   ├── __init__.py
+│   │   ├── position_manager.py            # Gestor de posiciones
+│   │   ├── history_manager.py             # Gestor de histórico
+│   │   └── cache_manager.py               # Gestor de caché
+│   └── consumers/                         # NUEVO: Consumidores WebSocket
+│       ├── __init__.py
+│       ├── gps_consumer.py                # Consumer GPS
+│       ├── map_consumer.py                # Consumer Mapas
+│       └── status_consumer.py             # Consumer Estado
+├── data_ingestion/                        # NUEVA APP: Ingesta de datos
+│   ├── __init__.py
+│   ├── models.py                          # Modelos de ingesta
+│   ├── views.py                           # APIs de recepción
+│   ├── urls.py                            # URLs de recepción
+│   ├── services/                          # Servicios
+│   │   ├── __init__.py
+│   │   ├── receiver_service.py            # Servicio receptores
+│   │   ├── processor_service.py           # Servicio procesadores
+│   │   └── notification_service.py        # Servicio notificaciones
+│   └── management/                        # Comandos de gestión
+│       └── commands/
+│           ├── __init__.py
+│           ├── start_receivers.py         # Iniciar receptores
+│           ├── stop_receivers.py          # Detener receptores
+│           └── monitor_system.py          # Monitorear sistema
+├── realtime/                              # NUEVA APP: Tiempo real
+│   ├── __init__.py
+│   ├── models.py                          # Modelos tiempo real
+│   ├── consumers.py                       # Consumidores WebSocket
+│   ├── routing.py                         # Rutas WebSocket
+│   └── middleware.py                      # Middleware WebSocket
+├── monitoring/                            # NUEVA APP: Monitoreo
+│   ├── __init__.py
+│   ├── models.py                          # Modelos monitoreo
+│   ├── views.py                           # APIs monitoreo
+│   ├── dashboards.py                      # Dashboards
+│   └── alerts.py                          # Sistema de alertas
+├── static/
+│   └── js/
+│       ├── realtime/                      # NUEVO: JS tiempo real
+│       │   ├── websocket_manager.js       # Gestor WebSocket
+│       │   ├── map_updater.js             # Actualizador mapas
+│       │   └── data_processor.js          # Procesador datos frontend
+│       └── maps/                          # NUEVO: JS mapas
+│           ├── realtime_map.js            # Mapa tiempo real
+│           ├── marker_manager.js          # Gestor marcadores
+│           └── layer_manager.js           # Gestor capas
+└── templates/
+    └── realtime/                          # NUEVO: Templates tiempo real
+        ├── map_realtime.html              # Template mapa tiempo real
+        ├── dashboard_realtime.html        # Dashboard tiempo real
+        └── monitoring.html                # Monitoreo sistema
+
+================================================================================
+6. MODELOS DE DATOS
+================================================================================
+
+6.1 MODELOS EXISTENTES (Modificaciones)
+---------------------------------------
+
+# gps/models.py - Agregar a los existentes
+
+class Movil(models.Model):
+    # ... campos existentes ...
+    
+    # NUEVOS CAMPOS PARA TIEMPO REAL
+    ultima_actualizacion = models.DateTimeField(auto_now=True)
+    estado_conexion = models.CharField(
+        max_length=20,
+        choices=[
+            ('conectado', 'Conectado'),
+            ('desconectado', 'Desconectado'),
+            ('error', 'Error'),
+        ],
+        default='desconectado'
+    )
+    calidad_senal = models.SmallIntegerField(null=True, blank=True)
+    bateria_porcentaje = models.SmallIntegerField(null=True, blank=True)
+    ignicion_estado = models.BooleanField(default=False)
+    
+    class Meta:
+        # ... meta existente ...
+        indexes = [
+            models.Index(fields=['estado_conexion']),
+            models.Index(fields=['ultima_actualizacion']),
+        ]
+
+6.2 NUEVOS MODELOS
+
+class PosicionHistorica(models.Model):
+    """Histórico de posiciones GPS"""
+    movil = models.ForeignKey(Movil, on_delete=models.CASCADE, related_name='posiciones')
+    latitud = models.DecimalField(max_digits=10, decimal_places=6)
+    longitud = models.DecimalField(max_digits=10, decimal_places=6)
+    altitud = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    velocidad = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
+    rumbo = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    satelites = models.SmallIntegerField(null=True, blank=True)
+    hdop = models.DecimalField(max_digits=4, decimal_places=2, null=True, blank=True)
+    ignicion = models.BooleanField(default=False)
+    bateria = models.SmallIntegerField(null=True, blank=True)
+    odometro = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    fecha_gps = models.DateTimeField()
+    fecha_recepcion = models.DateTimeField(auto_now_add=True)
+    raw_data = models.JSONField(null=True, blank=True)
+    calidad_datos = models.CharField(
+        max_length=20,
+        choices=[
+            ('excelente', 'Excelente'),
+            ('buena', 'Buena'),
+            ('regular', 'Regular'),
+            ('mala', 'Mala'),
+        ],
+        default='buena'
+    )
+    
+    class Meta:
+        db_table = 'posiciones_historicas'
+        ordering = ['-fecha_gps']
+        indexes = [
+            models.Index(fields=['movil', 'fecha_gps']),
+            models.Index(fields=['fecha_gps']),
+            models.Index(fields=['calidad_datos']),
+        ]
+
+class TipoEquipoGPS(models.Model):
+    """Tipos de equipos GPS soportados"""
+    codigo = models.CharField(max_length=20, unique=True)
+    nombre = models.CharField(max_length=100)
+    fabricante = models.CharField(max_length=100)
+    protocolo = models.CharField(
+        max_length=10,
+        choices=[
+            ('TCP', 'TCP'),
+            ('UDP', 'UDP'),
+            ('HTTP', 'HTTP'),
+        ]
+    )
+    puerto_default = models.IntegerField()
+    formato_datos = models.JSONField(help_text="Especificación del formato de datos")
+    activo = models.BooleanField(default=True)
+    
+    class Meta:
+        db_table = 'tipos_equipos_gps'
+        verbose_name = 'Tipo de Equipo GPS'
+        verbose_name_plural = 'Tipos de Equipos GPS'
+
+class ConfiguracionReceptor(models.Model):
+    """Configuración de receptores de datos"""
+    nombre = models.CharField(max_length=100)
+    tipo_equipo = models.ForeignKey(TipoEquipoGPS, on_delete=models.CASCADE)
+    puerto = models.IntegerField(unique=True)
+    protocolo = models.CharField(max_length=10)
+    activo = models.BooleanField(default=True)
+    max_conexiones = models.IntegerField(default=100)
+    max_equipos = models.IntegerField(default=1000)
+    timeout = models.IntegerField(default=30)
+    region = models.CharField(max_length=50, blank=True)
+    prioridad = models.IntegerField(default=1)
+    configuracion_avanzada = models.JSONField(null=True, blank=True)
+    
+    class Meta:
+        db_table = 'configuraciones_receptores'
+
+class EstadisticasRecepcion(models.Model):
+    """Estadísticas de recepción de datos"""
+    receptor = models.ForeignKey(ConfiguracionReceptor, on_delete=models.CASCADE)
+    fecha = models.DateField()
+    equipos_conectados = models.IntegerField(default=0)
+    datos_recibidos = models.IntegerField(default=0)
+    datos_procesados = models.IntegerField(default=0)
+    errores = models.IntegerField(default=0)
+    latencia_promedio = models.DecimalField(max_digits=8, decimal_places=3, null=True)
+    
+    class Meta:
+        db_table = 'estadisticas_recepcion'
+        unique_together = ('receptor', 'fecha')
+
+================================================================================
+7. IMPLEMENTACIÓN POR COMPONENTES
+================================================================================
+
+7.1 RECEPTOR BASE (receivers/base_receiver.py)
+----------------------------------------------
+
+```python
+import asyncio
+import logging
+from abc import ABC, abstractmethod
+from typing import Dict, Any, Optional
+
+logger = logging.getLogger(__name__)
+
+class BaseReceiver(ABC):
+    """Clase base para todos los receptores GPS"""
+    
+    def __init__(self, config: Dict[str, Any]):
+        self.config = config
+        self.active_connections = {}
+        self.running = False
+        
+    @abstractmethod
+    async def start(self):
+        """Iniciar el receptor"""
+        pass
+        
+    @abstractmethod
+    async def stop(self):
+        """Detener el receptor"""
+        pass
+        
+    @abstractmethod
+    async def handle_connection(self, reader, writer):
+        """Manejar una nueva conexión"""
+        pass
+        
+    @abstractmethod
+    def parse_data(self, raw_data: bytes) -> Optional[Dict[str, Any]]:
+        """Parsear datos según el protocolo específico"""
+        pass
+        
+    async def process_data(self, data: bytes, client_address: tuple):
+        """Procesar datos recibidos"""
+        try:
+            parsed_data = self.parse_data(data)
+            if parsed_data:
+                # Enviar a procesador central
+                await self.send_to_processor(parsed_data, client_address)
+        except Exception as e:
+            logger.error(f"Error procesando datos: {e}")
+            
+    async def send_to_processor(self, data: Dict[str, Any], client_address: tuple):
+        """Enviar datos al procesador central"""
+        # Implementación específica por receptor
+        pass
+```
+
+7.2 RECEPTOR TELTONIKA (receivers/teltonika_receiver.py)
+-------------------------------------------------------
+
+```python
+import struct
+from .base_receiver import BaseReceiver
+
+class TeltonikaReceiver(BaseReceiver):
+    """Receptor específico para equipos Teltonika"""
+    
+    async def start(self):
+        """Iniciar servidor TCP para Teltonika"""
+        server = await asyncio.start_server(
+            self.handle_connection,
+            '0.0.0.0',
+            self.config['puerto']
+        )
+        self.running = True
+        logger.info(f"Receptor Teltonika iniciado en puerto {self.config['puerto']}")
+        
+        async with server:
+            await server.serve_forever()
+            
+    async def handle_connection(self, reader, writer):
+        """Manejar conexión Teltonika"""
+        client_address = writer.get_extra_info('peername')
+        logger.info(f"Nueva conexión Teltonika desde {client_address}")
+        
+        try:
+            while True:
+                # Leer longitud del paquete
+                length_data = await reader.read(4)
+                if not length_data:
+                    break
+                    
+                length = struct.unpack('>I', length_data)[0]
+                
+                # Leer datos del paquete
+                packet_data = await reader.read(length)
+                
+                # Procesar datos
+                await self.process_data(packet_data, client_address)
+                
+                # Enviar ACK (protocolo Teltonika)
+                ack = struct.pack('>I', 1)
+                writer.write(ack)
+                await writer.drain()
+                
+        except Exception as e:
+            logger.error(f"Error en conexión Teltonika {client_address}: {e}")
+        finally:
+            writer.close()
+            
+    def parse_data(self, raw_data: bytes) -> Optional[Dict[str, Any]]:
+        """Parsear datos Teltonika"""
+        try:
+            # Implementación específica del protocolo Teltonika
+            # Formato: IMEI (8 bytes) + Codec ID (1 byte) + Data
+            
+            if len(raw_data) < 9:
+                return None
+                
+            imei = raw_data[0:8].decode('ascii')
+            codec_id = raw_data[8]
+            
+            # Parsear datos GPS según codec
+            if codec_id == 0x08:  # Codec 8
+                return self.parse_codec8(raw_data[9:], imei)
+            elif codec_id == 0x8E:  # Codec 8 Extended
+                return self.parse_codec8_extended(raw_data[9:], imei)
+            else:
+                logger.warning(f"Codec no soportado: {codec_id}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error parseando datos Teltonika: {e}")
+            return None
+            
+    def parse_codec8(self, data: bytes, imei: str) -> Dict[str, Any]:
+        """Parsear Codec 8 de Teltonika"""
+        # Implementación del parser Codec 8
+        # Extraer timestamp, coordenadas, velocidad, etc.
+        pass
+```
+
+7.3 PROCESADOR CENTRAL (processors/data_processor.py)
+----------------------------------------------------
+
+```python
+from django.utils import timezone
+from ..models import Movil, PosicionHistorica
+from .base_processor import BaseProcessor
+
+class DataProcessor:
+    """Procesador central de datos GPS"""
+    
+    def __init__(self):
+        self.processors = {
+            'teltonika': TeltonikaProcessor(),
+            'queclink': QueclinkProcessor(),
+            'generic': GenericProcessor()
+        }
+        
+    async def process_gps_data(self, raw_data: Dict[str, Any], device_type: str, client_address: tuple):
+        """Procesar datos GPS recibidos"""
+        try:
+            processor = self.processors.get(device_type, self.processors['generic'])
+            
+            # Validar y enriquecer datos
+            validated_data = await processor.validate_and_enrich(raw_data)
+            
+            if validated_data:
+                # Actualizar posición actual
+                await self.update_current_position(validated_data)
+                
+                # Guardar en histórico
+                await self.save_to_history(validated_data)
+                
+                # Notificar via WebSocket
+                await self.notify_realtime_update(validated_data)
+                
+        except Exception as e:
+            logger.error(f"Error procesando datos GPS: {e}")
+            
+    async def update_current_position(self, data: Dict[str, Any]):
+        """Actualizar posición actual del móvil"""
+        try:
+            movil = await self.get_movil_by_imei(data['imei'])
+            if movil:
+                movil.ultimo_lat = data['latitud']
+                movil.ultimo_lon = data['longitud']
+                movil.ultima_velocidad_kmh = data.get('velocidad', 0)
+                movil.ultimo_rumbo = data.get('rumbo', 0)
+                movil.ignicion = data.get('ignicion', False)
+                movil.bateria_porcentaje = data.get('bateria', 0)
+                movil.fecha_gps = data['fecha_gps']
+                movil.fecha_recepcion = timezone.now()
+                movil.estado_conexion = 'conectado'
+                movil.calidad_senal = data.get('satelites', 0)
+                
+                await movil.asave()
+                
+        except Exception as e:
+            logger.error(f"Error actualizando posición: {e}")
+            
+    async def save_to_history(self, data: Dict[str, Any]):
+        """Guardar posición en histórico"""
+        try:
+            movil = await self.get_movil_by_imei(data['imei'])
+            if movil:
+                PosicionHistorica.objects.create(
+                    movil=movil,
+                    latitud=data['latitud'],
+                    longitud=data['longitud'],
+                    altitud=data.get('altitud'),
+                    velocidad=data.get('velocidad'),
+                    rumbo=data.get('rumbo'),
+                    satelites=data.get('satelites'),
+                    hdop=data.get('hdop'),
+                    ignicion=data.get('ignicion', False),
+                    bateria=data.get('bateria'),
+                    odometro=data.get('odometro'),
+                    fecha_gps=data['fecha_gps'],
+                    raw_data=data.get('raw', {}),
+                    calidad_datos=self.calculate_data_quality(data)
+                )
+                
+        except Exception as e:
+            logger.error(f"Error guardando histórico: {e}")
+```
+
+7.4 GESTOR DE WEBSOCKETS (realtime/consumers.py)
+-----------------------------------------------
+
+```python
+import json
+from channels.generic.websocket import AsyncWebsocketConsumer
+from channels.db import database_sync_to_async
+from gps.models import Movil
+
+class GPSUpdateConsumer(AsyncWebsocketConsumer):
+    """Consumer para actualizaciones GPS en tiempo real"""
+    
+    async def connect(self):
+        self.room_group_name = 'gps_updates'
+        
+        # Autenticación del usuario
+        if not await self.authenticate_user():
+            await self.close()
+            return
+            
+        await self.channel_layer.group_add(
+            self.room_group_name,
+            self.channel_name
+        )
+        await self.accept()
+        
+        # Enviar estado inicial
+        await self.send_initial_state()
+        
+    async def disconnect(self, close_code):
+        await self.channel_layer.group_discard(
+            self.room_group_name,
+            self.channel_name
+        )
+        
+    async def receive(self, text_data):
+        data = json.loads(text_data)
+        message_type = data.get('type')
+        
+        if message_type == 'subscribe_mobile':
+            await self.subscribe_to_mobile(data['mobile_id'])
+        elif message_type == 'unsubscribe_mobile':
+            await self.unsubscribe_from_mobile(data['mobile_id'])
+            
+    async def gps_update(self, event):
+        """Enviar actualización GPS a cliente"""
+        await self.send(text_data=json.dumps({
+            'type': 'gps_update',
+            'mobile_id': event['mobile_id'],
+            'data': event['data']
+        }))
+        
+    async def mobile_status_update(self, event):
+        """Enviar actualización de estado de móvil"""
+        await self.send(text_data=json.dumps({
+            'type': 'mobile_status',
+            'mobile_id': event['mobile_id'],
+            'status': event['status']
+        }))
+        
+    async def authenticate_user(self):
+        """Autenticar usuario via token"""
+        # Implementar autenticación
+        return True
+        
+    async def send_initial_state(self):
+        """Enviar estado inicial de todos los móviles"""
+        moviles = await self.get_all_mobiles()
+        await self.send(text_data=json.dumps({
+            'type': 'initial_state',
+            'mobiles': moviles
+        }))
+```
+
+================================================================================
+8. CONFIGURACIÓN DE PUERTOS
+================================================================================
+
+8.1 GESTOR DE PUERTOS (receivers/port_manager.py)
+------------------------------------------------
+
+```python
+import asyncio
+import logging
+from typing import Dict, List
+from .base_receiver import BaseReceiver
+from ..models import ConfiguracionReceptor
+
+logger = logging.getLogger(__name__)
+
+class PortManager:
+    """Gestor de puertos y receptores"""
+    
+    def __init__(self):
+        self.active_receivers = {}
+        self.receiver_instances = {}
+        
+    async def start_all_receivers(self):
+        """Iniciar todos los receptores configurados"""
+        configuraciones = ConfiguracionReceptor.objects.filter(activo=True)
+        
+        for config in configuraciones:
+            try:
+                await self.start_receiver(config)
+                logger.info(f"✅ Receptor {config.nombre} iniciado en puerto {config.puerto}")
+            except Exception as e:
+                logger.error(f"❌ Error iniciando receptor {config.nombre}: {e}")
+                
+    async def start_receiver(self, config: ConfiguracionReceptor):
+        """Iniciar un receptor específico"""
+        receiver_class = self.get_receiver_class(config.tipo_equipo.codigo)
+        
+        receiver_config = {
+            'puerto': config.puerto,
+            'protocolo': config.protocolo,
+            'max_conexiones': config.max_conexiones,
+            'timeout': config.timeout,
+            'configuracion_avanzada': config.configuracion_avanzada or {}
+        }
+        
+        receiver = receiver_class(receiver_config)
+        
+        # Iniciar en tarea asíncrona
+        task = asyncio.create_task(receiver.start())
+        
+        self.active_receivers[config.id] = {
+            'config': config,
+            'receiver': receiver,
+            'task': task
+        }
+        
+    def get_receiver_class(self, tipo_equipo: str):
+        """Obtener clase de receptor según tipo de equipo"""
+        receiver_classes = {
+            'teltonika': TeltonikaReceiver,
+            'queclink': QueclinkReceiver,
+            'generic': GenericReceiver
+        }
+        return receiver_classes.get(tipo_equipo, GenericReceiver)
+        
+    async def stop_receiver(self, config_id: int):
+        """Detener un receptor específico"""
+        if config_id in self.active_receivers:
+            receiver_info = self.active_receivers[config_id]
+            await receiver_info['receiver'].stop()
+            receiver_info['task'].cancel()
+            del self.active_receivers[config_id]
+            
+    async def stop_all_receivers(self):
+        """Detener todos los receptores"""
+        for config_id in list(self.active_receivers.keys()):
+            await self.stop_receiver(config_id)
+```
+
+8.2 COMANDO DE GESTIÓN (management/commands/start_receivers.py)
+-------------------------------------------------------------
+
+```python
+from django.core.management.base import BaseCommand
+from gps.receivers.port_manager import PortManager
+import asyncio
+
+class Command(BaseCommand):
+    help = 'Iniciar receptores GPS'
+    
+    def add_arguments(self, parser):
+        parser.add_argument(
+            '--receiver',
+            type=str,
+            help='Iniciar solo un receptor específico'
+        )
+        
+    def handle(self, *args, **options):
+        port_manager = PortManager()
+        
+        if options['receiver']:
+            # Iniciar receptor específico
+            asyncio.run(port_manager.start_receiver_by_name(options['receiver']))
+        else:
+            # Iniciar todos los receptores
+            asyncio.run(port_manager.start_all_receivers())
+```
+
+================================================================================
+9. WEBSOCKETS Y TIEMPO REAL
+================================================================================
+
+9.1 CONFIGURACIÓN DE CHANNELS (settings.py)
+-------------------------------------------
+
+```python
+# settings.py - Agregar configuración de Channels
+
+INSTALLED_APPS = [
+    # ... apps existentes
+    'channels',
+    'realtime',
+    'data_ingestion',
+]
+
+ASGI_APPLICATION = 'wayproject.asgi.application'
+
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            "hosts": [('127.0.0.1', 6379)],
+        },
+    },
+}
+
+# Configuración específica para tiempo real
+REALTIME_SETTINGS = {
+    'GPS_UPDATE_INTERVAL': 1,  # Segundos entre actualizaciones
+    'MAX_CONNECTIONS_PER_USER': 5,
+    'WEBSOCKET_TIMEOUT': 30,
+    'RECONNECT_DELAY': 5,
+}
+```
+
+9.2 RUTAS WEBSOCKET (realtime/routing.py)
+----------------------------------------
+
+```python
+from django.urls import re_path
+from . import consumers
+
+websocket_urlpatterns = [
+    re_path(r'ws/gps/$', consumers.GPSUpdateConsumer.as_asgi()),
+    re_path(r'ws/map/(?P<map_id>\w+)/$', consumers.MapConsumer.as_asgi()),
+    re_path(r'ws/status/$', consumers.StatusConsumer.as_asgi()),
+]
+```
+
+9.3 NOTIFICADOR DE ACTUALIZACIONES (services/notification_service.py)
+------------------------------------------------------------------
+
+```python
+from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
+import json
+
+class NotificationService:
+    """Servicio para notificar actualizaciones via WebSocket"""
+    
+    def __init__(self):
+        self.channel_layer = get_channel_layer()
+        
+    def notify_gps_update(self, mobile_id: int, data: dict):
+        """Notificar actualización GPS"""
+        async_to_sync(self.channel_layer.group_send)(
+            'gps_updates',
+            {
+                'type': 'gps_update',
+                'mobile_id': mobile_id,
+                'data': data
+            }
+        )
+        
+    def notify_mobile_status(self, mobile_id: int, status: str):
+        """Notificar cambio de estado de móvil"""
+        async_to_sync(self.channel_layer.group_send)(
+            'gps_updates',
+            {
+                'type': 'mobile_status_update',
+                'mobile_id': mobile_id,
+                'status': status
+            }
+        )
+        
+    def notify_system_alert(self, alert_type: str, message: str):
+        """Notificar alerta del sistema"""
+        async_to_sync(self.channel_layer.group_send)(
+            'system_alerts',
+            {
+                'type': 'system_alert',
+                'alert_type': alert_type,
+                'message': message
+            }
+        )
+```
+
+================================================================================
+10. FRONTEND CON MAPAS DINÁMICOS
+================================================================================
+
+10.1 GESTOR WEBSOCKET FRONTEND (static/js/realtime/websocket_manager.js)
+----------------------------------------------------------------------
+
+```javascript
+class WebSocketManager {
+    constructor() {
+        this.socket = null;
+        this.reconnectAttempts = 0;
+        this.maxReconnectAttempts = 5;
+        this.reconnectDelay = 5000;
+        this.listeners = new Map();
+        
+        this.connect();
+    }
+    
+    connect() {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${window.location.host}/ws/gps/`;
+        
+        this.socket = new WebSocket(wsUrl);
+        
+        this.socket.onopen = () => {
+            console.log('WebSocket conectado');
+            this.reconnectAttempts = 0;
+            this.notifyListeners('connected');
+        };
+        
+        this.socket.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            this.handleMessage(data);
+        };
+        
+        this.socket.onclose = () => {
+            console.log('WebSocket desconectado');
+            this.notifyListeners('disconnected');
+            this.attemptReconnect();
+        };
+        
+        this.socket.onerror = (error) => {
+            console.error('Error WebSocket:', error);
+            this.notifyListeners('error', error);
+        };
+    }
+    
+    handleMessage(data) {
+        switch(data.type) {
+            case 'gps_update':
+                this.notifyListeners('gps_update', data);
+                break;
+            case 'mobile_status':
+                this.notifyListeners('mobile_status', data);
+                break;
+            case 'system_alert':
+                this.notifyListeners('system_alert', data);
+                break;
+            case 'initial_state':
+                this.notifyListeners('initial_state', data);
+                break;
+        }
+    }
+    
+    addListener(event, callback) {
+        if (!this.listeners.has(event)) {
+            this.listeners.set(event, []);
+        }
+        this.listeners.get(event).push(callback);
+    }
+    
+    removeListener(event, callback) {
+        if (this.listeners.has(event)) {
+            const callbacks = this.listeners.get(event);
+            const index = callbacks.indexOf(callback);
+            if (index > -1) {
+                callbacks.splice(index, 1);
+            }
+        }
+    }
+    
+    notifyListeners(event, data = null) {
+        if (this.listeners.has(event)) {
+            this.listeners.get(event).forEach(callback => {
+                try {
+                    callback(data);
+                } catch (error) {
+                    console.error('Error en listener:', error);
+                }
+            });
+        }
+    }
+    
+    attemptReconnect() {
+        if (this.reconnectAttempts < this.maxReconnectAttempts) {
+            this.reconnectAttempts++;
+            console.log(`Reintentando conexión ${this.reconnectAttempts}/${this.maxReconnectAttempts}`);
+            
+            setTimeout(() => {
+                this.connect();
+            }, this.reconnectDelay);
+        } else {
+            console.error('Máximo número de intentos de reconexión alcanzado');
+            this.notifyListeners('connection_failed');
+        }
+    }
+    
+    send(data) {
+        if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+            this.socket.send(JSON.stringify(data));
+        }
+    }
+    
+    subscribeToMobile(mobileId) {
+        this.send({
+            type: 'subscribe_mobile',
+            mobile_id: mobileId
+        });
+    }
+    
+    unsubscribeFromMobile(mobileId) {
+        this.send({
+            type: 'unsubscribe_mobile',
+            mobile_id: mobileId
+        });
+    }
+}
+```
+
+10.2 ACTUALIZADOR DE MAPAS (static/js/realtime/map_updater.js)
+------------------------------------------------------------
+
+```javascript
+class MapUpdater {
+    constructor(map, websocketManager) {
+        this.map = map;
+        this.websocketManager = websocketManager;
+        this.markers = new Map();
+        this.mobilePaths = new Map();
+        
+        this.setupWebSocketListeners();
+        this.initializeMap();
+    }
+    
+    setupWebSocketListeners() {
+        this.websocketManager.addListener('gps_update', (data) => {
+            this.updateMobilePosition(data.mobile_id, data.data);
+        });
+        
+        this.websocketManager.addListener('mobile_status', (data) => {
+            this.updateMobileStatus(data.mobile_id, data.status);
+        });
+        
+        this.websocketManager.addListener('initial_state', (data) => {
+            this.loadInitialState(data.mobiles);
+        });
+    }
+    
+    initializeMap() {
+        // Configuración inicial del mapa
+        this.map.setView([-34.6037, -58.3816], 10);
+        
+        // Agregar capas base
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(this.map);
+    }
+    
+    loadInitialState(mobiles) {
+        mobiles.forEach(mobile => {
+            if (mobile.ultimo_lat && mobile.ultimo_lon) {
+                this.createMobileMarker(mobile);
+            }
+        });
+    }
+    
+    createMobileMarker(mobile) {
+        const position = [mobile.ultimo_lat, mobile.ultimo_lon];
+        const icon = this.createMobileIcon(mobile);
+        
+        const marker = L.marker(position, { icon: icon })
+            .addTo(this.map);
+            
+        // Popup con información del móvil
+        const popupContent = this.createPopupContent(mobile);
+        marker.bindPopup(popupContent);
+        
+        // Guardar marcador
+        this.markers.set(mobile.id, marker);
+        
+        // Inicializar ruta si no existe
+        if (!this.mobilePaths.has(mobile.id)) {
+            const polyline = L.polyline([], {
+                color: this.getMobileColor(mobile),
+                weight: 3,
+                opacity: 0.7
+            }).addTo(this.map);
+            
+            this.mobilePaths.set(mobile.id, polyline);
+        }
+        
+        return marker;
+    }
+    
+    updateMobilePosition(mobileId, data) {
+        const marker = this.markers.get(mobileId);
+        const path = this.mobilePaths.get(mobileId);
+        
+        if (marker) {
+            // Actualizar posición del marcador
+            const newPosition = [data.latitud, data.longitud];
+            marker.setLatLng(newPosition);
+            
+            // Actualizar popup
+            const popupContent = this.createPopupContent({
+                id: mobileId,
+                patente: data.patente || 'N/A',
+                velocidad: data.velocidad || 0,
+                rumbo: data.rumbo || 0,
+                ignicion: data.ignicion || false,
+                bateria: data.bateria || 0,
+                ultima_actualizacion: new Date().toLocaleString()
+            });
+            marker.bindPopup(popupContent);
+            
+            // Actualizar ruta
+            if (path) {
+                const currentPath = path.getLatLngs();
+                currentPath.push(newPosition);
+                
+                // Limitar ruta a últimos 100 puntos
+                if (currentPath.length > 100) {
+                    currentPath.shift();
+                }
+                
+                path.setLatLngs(currentPath);
+            }
+            
+            // Actualizar icono según estado
+            const newIcon = this.createMobileIcon({
+                id: mobileId,
+                ignicion: data.ignicion,
+                velocidad: data.velocidad,
+                bateria: data.bateria
+            });
+            marker.setIcon(newIcon);
+        }
+    }
+    
+    createMobileIcon(mobile) {
+        let iconColor = '#ff4444'; // Rojo por defecto
+        
+        if (mobile.ignicion) {
+            iconColor = '#44ff44'; // Verde si encendido
+        } else if (mobile.velocidad > 0) {
+            iconColor = '#ffff44'; // Amarillo si en movimiento
+        }
+        
+        return L.divIcon({
+            className: 'custom-mobile-icon',
+            html: `
+                <div style="
+                    background-color: ${iconColor};
+                    width: 20px;
+                    height: 20px;
+                    border-radius: 50%;
+                    border: 3px solid white;
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 10px;
+                    color: white;
+                    font-weight: bold;
+                ">
+                    ${mobile.patente ? mobile.patente.substring(0, 2) : 'M'}
+                </div>
+            `,
+            iconSize: [26, 26],
+            iconAnchor: [13, 13]
+        });
+    }
+    
+    createPopupContent(mobile) {
+        return `
+            <div style="min-width: 200px;">
+                <h6><strong>${mobile.patente || 'Móvil ' + mobile.id}</strong></h6>
+                <div><strong>Posición:</strong> ${mobile.ultimo_lat?.toFixed(6)}, ${mobile.ultimo_lon?.toFixed(6)}</div>
+                <div><strong>Velocidad:</strong> ${mobile.velocidad || 0} km/h</div>
+                <div><strong>Rumbo:</strong> ${mobile.rumbo || 0}°</div>
+                <div><strong>Ignición:</strong> ${mobile.ignicion ? 'ON' : 'OFF'}</div>
+                <div><strong>Batería:</strong> ${mobile.bateria || 0}%</div>
+                <div><strong>Última actualización:</strong><br>${mobile.ultima_actualizacion || new Date().toLocaleString()}</div>
+            </div>
+        `;
+    }
+    
+    getMobileColor(mobile) {
+        // Colores para las rutas según el móvil
+        const colors = ['#ff4444', '#44ff44', '#4444ff', '#ffff44', '#ff44ff', '#44ffff'];
+        return colors[mobile.id % colors.length];
+    }
+    
+    updateMobileStatus(mobileId, status) {
+        const marker = this.markers.get(mobileId);
+        if (marker) {
+            // Cambiar color del marcador según estado
+            let iconColor = '#ff4444';
+            
+            switch(status) {
+                case 'conectado':
+                    iconColor = '#44ff44';
+                    break;
+                case 'desconectado':
+                    iconColor = '#ff4444';
+                    break;
+                case 'error':
+                    iconColor = '#ff8800';
+                    break;
+            }
+            
+            const newIcon = L.divIcon({
+                className: 'custom-mobile-icon',
+                html: `
+                    <div style="
+                        background-color: ${iconColor};
+                        width: 20px;
+                        height: 20px;
+                        border-radius: 50%;
+                        border: 3px solid white;
+                        box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+                    "></div>
+                `,
+                iconSize: [26, 26],
+                iconAnchor: [13, 13]
+            });
+            
+            marker.setIcon(newIcon);
+        }
+    }
+    
+    clearMobilePath(mobileId) {
+        const path = this.mobilePaths.get(mobileId);
+        if (path) {
+            path.setLatLngs([]);
+        }
+    }
+    
+    removeMobile(mobileId) {
+        const marker = this.markers.get(mobileId);
+        const path = this.mobilePaths.get(mobileId);
+        
+        if (marker) {
+            this.map.removeLayer(marker);
+            this.markers.delete(mobileId);
+        }
+        
+        if (path) {
+            this.map.removeLayer(path);
+            this.mobilePaths.delete(mobileId);
+        }
+    }
+}
+```
+
+10.3 INTEGRACIÓN EN PÁGINA PRINCIPAL
+------------------------------------
+
+```javascript
+// En el template del mapa
+document.addEventListener('DOMContentLoaded', function() {
+    // Inicializar mapa
+    const map = L.map('mapa-realtime').setView([-34.6037, -58.3816], 10);
+    
+    // Inicializar gestor WebSocket
+    const websocketManager = new WebSocketManager();
+    
+    // Inicializar actualizador de mapa
+    const mapUpdater = new MapUpdater(map, websocketManager);
+    
+    // Manejar reconexión
+    websocketManager.addListener('connection_failed', () => {
+        alert('Error de conexión. Por favor, recarga la página.');
+    });
+    
+    // Manejar alertas del sistema
+    websocketManager.addListener('system_alert', (data) => {
+        showNotification(data.alert_type, data.message);
+    });
+    
+    // Función para mostrar notificaciones
+    function showNotification(type, message) {
+        // Implementar sistema de notificaciones
+        console.log(`${type}: ${message}`);
+    }
+});
+```
+
+================================================================================
+11. ESCALABILIDAD Y PERFORMANCE
+================================================================================
+
+11.1 OPTIMIZACIONES DE BASE DE DATOS
+------------------------------------
+
+```python
+# Índices recomendados para posiciones_historicas
+class PosicionHistorica(models.Model):
+    # ... campos existentes ...
+    
+    class Meta:
+        indexes = [
+            models.Index(fields=['movil', 'fecha_gps']),  # Consultas por móvil
+            models.Index(fields=['fecha_gps']),           # Consultas por tiempo
+            models.Index(fields=['calidad_datos']),       # Filtros por calidad
+            # Índice espacial para consultas geográficas
+            models.Index(fields=['latitud', 'longitud']),
+        ]
+```
+
+11.2 CACHE Y OPTIMIZACIONES
+---------------------------
+
+```python
+# Cache de configuraciones
+from django.core.cache import cache
+
+class ConfiguracionReceptorManager(models.Manager):
+    def get_active_receivers(self):
+        cache_key = 'active_receivers'
+        receivers = cache.get(cache_key)
+        
+        if receivers is None:
+            receivers = list(self.filter(activo=True).values())
+            cache.set(cache_key, receivers, 300)  # Cache por 5 minutos
+            
+        return receivers
+
+# Optimización de consultas
+class MovilManager(models.Manager):
+    def with_recent_positions(self):
+        return self.select_related().prefetch_related(
+            Prefetch(
+                'posiciones',
+                queryset=PosicionHistorica.objects.order_by('-fecha_gps')[:1],
+                to_attr='ultima_posicion'
+            )
+        )
+```
+
+11.3 PROCESAMIENTO ASÍNCRONO
+----------------------------
+
+```python
+# Uso de Celery para tareas pesadas
+from celery import shared_task
+
+@shared_task
+def process_gps_data_batch(data_list):
+    """Procesar lote de datos GPS"""
+    for data in data_list:
+        # Procesar cada dato
+        process_single_gps_data.delay(data)
+
+@shared_task
+def cleanup_old_positions():
+    """Limpiar posiciones antiguas"""
+    cutoff_date = timezone.now() - timedelta(days=90)
+    PosicionHistorica.objects.filter(
+        fecha_gps__lt=cutoff_date
+    ).delete()
+```
+
+================================================================================
+12. SEGURIDAD
+================================================================================
+
+12.1 AUTENTICACIÓN WEBSOCKET
+----------------------------
+
+```python
+from django.contrib.auth.models import AnonymousUser
+
+class AuthenticatedWebSocketConsumer(AsyncWebsocketConsumer):
+    async def connect(self):
+        # Verificar autenticación
+        user = await self.get_user()
+        if user.is_anonymous:
+            await self.close()
+            return
+            
+        # Verificar permisos
+        if not await self.check_permissions(user):
+            await self.close()
+            return
+            
+        await self.accept()
+        
+    async def get_user(self):
+        # Implementar autenticación por token
+        token = self.scope.get('query_string', b'').decode().split('token=')[-1]
+        if token:
+            try:
+                from rest_framework.authtoken.models import Token
+                token_obj = await database_sync_to_async(Token.objects.get)(key=token)
+                return token_obj.user
+            except Token.DoesNotExist:
+                pass
+        return AnonymousUser()
+```
+
+12.2 VALIDACIÓN DE DATOS
+------------------------
+
+```python
+class DataValidator:
+    """Validador de datos GPS"""
+    
+    @staticmethod
+    def validate_coordinates(lat, lon):
+        """Validar coordenadas"""
+        if not (-90 <= lat <= 90):
+            raise ValueError("Latitud inválida")
+        if not (-180 <= lon <= 180):
+            raise ValueError("Longitud inválida")
+        return True
+        
+    @staticmethod
+    def validate_imei(imei):
+        """Validar IMEI"""
+        if not imei or len(imei) != 15:
+            raise ValueError("IMEI inválido")
+        return True
+        
+    @staticmethod
+    def sanitize_data(data):
+        """Sanitizar datos recibidos"""
+        # Remover caracteres peligrosos
+        # Validar tipos de datos
+        # Limitar tamaños
+        pass
+```
+
+================================================================================
+13. MONITOREO Y LOGS
+================================================================================
+
+13.1 SISTEMA DE LOGS
+--------------------
+
+```python
+# logging_config.py
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
+            'style': '{',
+        },
+        'simple': {
+            'format': '{levelname} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'file_gps': {
+            'level': 'INFO',
+            'class': 'logging.FileHandler',
+            'filename': 'logs/gps_receivers.log',
+            'formatter': 'verbose',
+        },
+        'file_websockets': {
+            'level': 'INFO',
+            'class': 'logging.FileHandler',
+            'filename': 'logs/websockets.log',
+            'formatter': 'verbose',
+        },
+    },
+    'loggers': {
+        'gps.receivers': {
+            'handlers': ['file_gps'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'realtime.consumers': {
+            'handlers': ['file_websockets'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+    },
+}
+```
+
+13.2 MÉTRICAS Y MONITOREO
+-------------------------
+
+```python
+class MetricsCollector:
+    """Recolector de métricas del sistema"""
+    
+    def __init__(self):
+        self.metrics = {
+            'gps_data_received': 0,
+            'gps_data_processed': 0,
+            'websocket_connections': 0,
+            'errors': 0,
+        }
+        
+    def increment_gps_received(self):
+        self.metrics['gps_data_received'] += 1
+        
+    def increment_gps_processed(self):
+        self.metrics['gps_data_processed'] += 1
+        
+    def increment_websocket_connections(self):
+        self.metrics['websocket_connections'] += 1
+        
+    def increment_errors(self):
+        self.metrics['errors'] += 1
+        
+    def get_metrics(self):
+        return self.metrics.copy()
+```
+
+================================================================================
+14. PLAN DE IMPLEMENTACIÓN
+================================================================================
+
+FASE 1: INFRAESTRUCTURA BASE (Semana 1-2)
+-----------------------------------------
+□ Crear estructura de archivos
+□ Implementar modelos de datos
+□ Configurar Django Channels
+□ Configurar Redis
+□ Implementar receptor base
+□ Configurar logging
+
+FASE 2: RECEPTORES GPS (Semana 3-4)
+-----------------------------------
+□ Implementar receptor Teltonika
+□ Implementar receptor genérico
+□ Configurar gestor de puertos
+□ Implementar comando de gestión
+□ Testing de receptores
+
+FASE 3: PROCESAMIENTO DE DATOS (Semana 5-6)
+-------------------------------------------
+□ Implementar procesadores de datos
+□ Configurar validadores
+□ Implementar gestor de posiciones
+□ Optimizar consultas de base de datos
+□ Testing de procesamiento
+
+FASE 4: WEBSOCKETS (Semana 7-8)
+-------------------------------
+□ Implementar consumidores WebSocket
+□ Configurar autenticación
+□ Implementar notificaciones
+□ Testing de WebSockets
+
+FASE 5: FRONTEND (Semana 9-10)
+------------------------------
+□ Implementar gestor WebSocket frontend
+□ Implementar actualizador de mapas
+□ Integrar con mapas existentes
+□ Implementar notificaciones
+□ Testing de frontend
+
+FASE 6: OPTIMIZACIÓN (Semana 11-12)
+-----------------------------------
+□ Optimizar performance
+□ Implementar cache
+□ Configurar monitoreo
+□ Documentación final
+□ Testing de carga
+
+================================================================================
+15. ANEXOS
+================================================================================
+
+A) COMANDOS ÚTILES
+------------------
+```bash
+# Iniciar receptores
+python manage.py start_receivers
+
+# Monitorear sistema
+python manage.py monitor_system
+
+# Limpiar datos antiguos
+python manage.py cleanup_old_data
+
+# Generar estadísticas
+python manage.py generate_stats
+```
+
+B) CONFIGURACIÓN NGINX PARA WEBSOCKETS
+--------------------------------------
+```nginx
+location /ws/ {
+    proxy_pass http://127.0.0.1:8000;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+```
+
+C) CONFIGURACIÓN REDIS
+-----------------------
+```conf
+# redis.conf
+maxmemory 256mb
+maxmemory-policy allkeys-lru
+save 900 1
+save 300 10
+save 60 10000
+```
+
+D) COMANDOS DE MONITOREO
+------------------------
+```bash
+# Ver conexiones WebSocket
+netstat -an | grep :8000 | grep ESTABLISHED
+
+# Ver procesos de receptores
+ps aux | grep python | grep receiver
+
+# Monitorear logs en tiempo real
+tail -f logs/gps_receivers.log
+tail -f logs/websockets.log
+
+# Ver métricas de Redis
+redis-cli info memory
+redis-cli info clients
+```
+
+================================================================================
+CONCLUSIONES
+================================================================================
+
+Esta arquitectura proporciona:
+
+✅ ESCALABILIDAD: Maneja múltiples tipos de equipos y puertos
+✅ TIEMPO REAL: WebSockets para actualizaciones instantáneas
+✅ ROBUSTEZ: Manejo de errores y reconexión automática
+✅ FLEXIBILIDAD: Fácil agregar nuevos tipos de equipos
+✅ PERFORMANCE: Procesamiento asíncrono y optimizaciones
+✅ SEGURIDAD: Autenticación y validación de datos
+✅ MONITOREO: Logs y métricas completas
+
+La implementación modular permite desarrollo incremental y testing
+individual de cada componente, facilitando el mantenimiento y la
+extensión del sistema.
+
+================================================================================
+Fecha: 2025-10-09
+Versión: 1.0
+Sistema: WayGPS - Arquitectura GPS Tiempo Real
+================================================================================

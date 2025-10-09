@@ -1,0 +1,105 @@
+╔════════════════════════════════════════════════════════════════════════════╗
+║                                                                            ║
+║          ESTRUCTURA REAL DE LA TABLA equipos_gps                          ║
+║                                                                            ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+================================================================================
+COLUMNAS REALES (verificado 08/Oct/2025)
+================================================================================
+
+La tabla equipos_gps tiene estas columnas:
+
+1.  id                 (bigint, PK)
+2.  empresa_id         (integer, FK a empresas.id)  ← IMPORTANTE: es empresa_id
+3.  imei               (varchar 15, UNIQUE)
+4.  numero_serie       (varchar 50)
+5.  modelo             (varchar 50)
+6.  marca              (varchar 50)
+7.  estado             (varchar 20)
+8.  fecha_instalacion  (timestamp)
+9.  created_at         (timestamp)
+10. updated_at         (timestamp)
+
+================================================================================
+PROBLEMA RESUELTO
+================================================================================
+
+ERROR ANTERIOR:
+  column "empresa" of relation "equipos_gps" does not exist
+
+CAUSA:
+  El modelo tenía db_column='empresa', pero la columna real es empresa_id
+
+SOLUCIÓN:
+  Quitar db_column='empresa' del modelo
+  Django automáticamente buscará empresa_id (convención)
+
+================================================================================
+MODELO CORRECTO
+================================================================================
+
+class Equipo(models.Model):
+    id = models.BigAutoField(primary_key=True)
+    
+    empresa = models.ForeignKey(
+        'Empresa',
+        on_delete=models.DO_NOTHING,
+        null=True,
+        blank=True
+        # NO usar db_column, Django usa 'empresa_id' por defecto ✓
+    )
+    
+    imei = models.CharField(max_length=15, unique=True)
+    numero_serie = models.CharField(max_length=50, null=True, blank=True)
+    modelo = models.CharField(max_length=50, null=True, blank=True)
+    marca = models.CharField(max_length=50, null=True, blank=True)
+    estado = models.CharField(max_length=20, null=True, blank=True)
+    fecha_instalacion = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField()
+    updated_at = models.DateTimeField()
+    
+    class Meta:
+        managed = False
+        db_table = 'equipos_gps'
+
+================================================================================
+REGLA IMPORTANTE
+================================================================================
+
+Cuando defines un ForeignKey en Django:
+
+Campo en modelo:     empresa
+Columna en BD:       empresa_id  (Django agrega "_id" automáticamente)
+
+SOLO usa db_column si la columna NO sigue esta convención.
+
+Ejemplos:
+  ✓ Columna: empresa_id     → NO usar db_column
+  ✓ Columna: empresa        → Usar db_column='empresa'
+  ✓ Columna: id_empresa     → Usar db_column='id_empresa'
+
+================================================================================
+AHORA DEBERÍA FUNCIONAR
+================================================================================
+
+1. Reinicia el servidor:
+   python manage.py runserver
+
+2. Accede a:
+   http://127.0.0.1:8000/equipos/
+
+3. Crea un equipo:
+   - IMEI: 123456789012345
+   - Marca: Teltonika
+   - Modelo: FMB920
+   - Estado: En Stock
+   - Guardar
+
+4. El equipo se creará correctamente en equipos_gps
+
+================================================================================
+
+✅ Modelo corregido y alineado con la estructura real de la tabla!
+
+================================================================================

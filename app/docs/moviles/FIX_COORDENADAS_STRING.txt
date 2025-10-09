@@ -1,0 +1,277 @@
+╔════════════════════════════════════════════════════════════════════════════╗
+║                                                                            ║
+║              ✅ ERROR COORDENADAS CORREGIDO - toFixed()                    ║
+║                                                                            ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+================================================================================
+PROBLEMA IDENTIFICADO
+================================================================================
+
+Error al cargar móviles en el frontend:
+
+  TypeError: movil.ultimo_lat.toFixed is not a function
+  at createMovilRow (moviles.js:176:29)
+
+CAUSA:
+Las coordenadas (ultimo_lat, ultimo_lon) vienen de la API como STRINGS,
+no como números. Los campos DecimalField de Django se serializan como strings
+en JSON para preservar la precisión.
+
+Cuando intentas hacer: movil.ultimo_lat.toFixed(6)
+JavaScript intenta llamar .toFixed() en un string, lo cual genera error.
+
+================================================================================
+SOLUCIÓN APLICADA
+================================================================================
+
+✅ CORRECCIÓN EN static/js/moviles.js:
+
+3 lugares corregidos:
+
+1️⃣  TABLA DE MÓVILES (createMovilRow):
+
+ANTES:
+  const posicion = (movil.ultimo_lat && movil.ultimo_lon) ? 
+      `${movil.ultimo_lat.toFixed(6)}, ${movil.ultimo_lon.toFixed(6)}` :  // ❌
+      'Sin datos';
+
+DESPUÉS:
+  const posicion = (movil.ultimo_lat && movil.ultimo_lon) ? 
+      `${parseFloat(movil.ultimo_lat).toFixed(6)}, ${parseFloat(movil.ultimo_lon).toFixed(6)}` :  // ✅
+      'Sin datos';
+
+2️⃣  MAPA PRINCIPAL (updateMapaPrincipal):
+
+ANTES:
+  const marker = L.marker([movil.ultimo_lat, movil.ultimo_lon], { icon })  // ❌
+
+DESPUÉS:
+  const lat = parseFloat(movil.ultimo_lat);  // ✅
+  const lon = parseFloat(movil.ultimo_lon);  // ✅
+  const marker = L.marker([lat, lon], { icon })
+
+3️⃣  MAPA DASHBOARD (updateMapaDashboard):
+
+ANTES:
+  const marker = L.marker([movil.ultimo_lat, movil.ultimo_lon], {  // ❌
+
+DESPUÉS:
+  const lat = parseFloat(movil.ultimo_lat);  // ✅
+  const lon = parseFloat(movil.ultimo_lon);  // ✅
+  const marker = L.marker([lat, lon], {
+
+================================================================================
+¿POR QUÉ PASA ESTO?
+================================================================================
+
+Django REST Framework serializa los campos DecimalField como strings para
+mantener la precisión exacta y evitar problemas de redondeo de punto flotante.
+
+Ejemplo de respuesta de la API:
+
+```json
+{
+  "id": 1,
+  "ultimo_lat": "-34.603722",    // ← String, no número
+  "ultimo_lon": "-58.381592",    // ← String, no número
+  "ultima_velocidad_kmh": "65.50"  // ← String, no número
+}
+```
+
+JavaScript no puede llamar .toFixed() en strings, solo en números.
+
+================================================================================
+SOLUCIÓN: parseFloat()
+================================================================================
+
+parseFloat() convierte el string a número:
+
+```javascript
+const stringNum = "-34.603722";           // String
+const number = parseFloat(stringNum);     // -34.603722 (Number)
+number.toFixed(6);                        // "-34.603722"
+```
+
+NOTA: parseFloat() es más seguro que Number() porque:
+- Ignora caracteres no numéricos al final
+- Retorna NaN si no puede convertir
+- Es más tolerante con formatos
+
+================================================================================
+CAMPOS QUE PUEDEN TENER ESTE PROBLEMA
+================================================================================
+
+Todos los campos DecimalField del modelo pueden tener este problema:
+
+Campo                      Tipo            ¿Necesita parseFloat?
+────────────────────────────────────────────────────────────────────────────
+ultimo_lat                 DecimalField    ✅ SÍ
+ultimo_lon                 DecimalField    ✅ SÍ
+ultima_velocidad_kmh       DecimalField    ✅ SÍ (si usas .toFixed())
+ultima_altitud_m           DecimalField    ✅ SÍ (si usas .toFixed())
+ultimo_hdop                DecimalField    ✅ SÍ (si usas .toFixed())
+bateria_pct                DecimalField    ✅ SÍ (si usas .toFixed())
+odometro_km                DecimalField    ✅ SÍ (si usas .toFixed())
+km_calculado               DecimalField    ✅ SÍ (si usas .toFixed())
+geo_confianza              DecimalField    ✅ SÍ (si usas .toFixed())
+icono_escala               DecimalField    ✅ SÍ (si usas .toFixed())
+
+anio                       SmallIntegerField   ✅ SÍ (si haces operaciones)
+ultimo_rumbo               SmallIntegerField   ✅ SÍ (si haces operaciones)
+
+================================================================================
+MEJORA ALTERNATIVA: SERIALIZER PERSONALIZADO
+================================================================================
+
+Si prefieres que la API devuelva números en lugar de strings, puedes
+personalizar el serializer:
+
+En gps/serializers.py:
+
+```python
+from rest_framework import serializers
+from .models import Movil
+
+class MovilSerializer(serializers.ModelSerializer):
+    # Forzar serialización como float
+    ultimo_lat = serializers.FloatField()
+    ultimo_lon = serializers.FloatField()
+    ultima_velocidad_kmh = serializers.FloatField()
+    
+    class Meta:
+        model = Movil
+        fields = '__all__'
+        read_only_fields = ('id', 'created_at', 'updated_at')
+```
+
+VENTAJA: No necesitas parseFloat() en el frontend
+DESVENTAJA: Puedes perder precisión en decimales muy largos
+
+================================================================================
+BUENAS PRÁCTICAS
+================================================================================
+
+1. SIEMPRE convierte a número antes de operaciones matemáticas:
+   ✅ parseFloat(value) + 10
+   ❌ value + 10
+
+2. SIEMPRE verifica que el valor existe antes de convertir:
+   ✅ if (movil.ultimo_lat) { parseFloat(movil.ultimo_lat) }
+   ❌ parseFloat(movil.ultimo_lat)  // Error si es null
+
+3. USA valores por defecto para evitar NaN:
+   ✅ parseFloat(movil.ultimo_lat || 0)
+   ❌ parseFloat(movil.ultimo_lat)  // NaN si es null
+
+4. VALIDA resultados de parseFloat():
+   ```javascript
+   const lat = parseFloat(movil.ultimo_lat);
+   if (!isNaN(lat)) {
+       // Usar lat
+   }
+   ```
+
+================================================================================
+FUNCIÓN HELPER RECOMENDADA
+================================================================================
+
+Puedes crear una función helper en tu código:
+
+```javascript
+// En static/js/utils.js (nuevo archivo)
+
+/**
+ * Convierte un valor a float de forma segura
+ * @param {*} value - Valor a convertir
+ * @param {number} defaultValue - Valor por defecto si falla
+ * @returns {number} - Número o valor por defecto
+ */
+function safeParseFloat(value, defaultValue = 0) {
+    if (value === null || value === undefined || value === '') {
+        return defaultValue;
+    }
+    const parsed = parseFloat(value);
+    return isNaN(parsed) ? defaultValue : parsed;
+}
+
+// Uso:
+const lat = safeParseFloat(movil.ultimo_lat);
+const lon = safeParseFloat(movil.ultimo_lon);
+```
+
+================================================================================
+PRUEBA RÁPIDA
+================================================================================
+
+Después de actualizar el archivo, recarga la página (F5 o Ctrl+R).
+
+Verifica en la consola del navegador (F12):
+- ✅ Sin errores "toFixed is not a function"
+- ✅ Coordenadas se muestran correctamente en la tabla
+- ✅ Móviles aparecen en el mapa
+- ✅ Popups muestran información correcta
+
+================================================================================
+SI PERSISTE EL PROBLEMA
+================================================================================
+
+1. LIMPIAR CACHE DEL NAVEGADOR:
+   - Ctrl + Shift + R (recarga forzada)
+   - O F12 > Network > Disable cache (checkbox)
+   - O Settings del navegador > Limpiar cache
+
+2. VERIFICAR ARCHIVO CORRECTO:
+   - Si usas Django templates: static/js/moviles.js
+   - Si usas archivos antiguos: app.js (también hay que corregirlo)
+
+3. VERIFICAR QUE EL SERVIDOR ESTÁ SIRVIENDO EL ARCHIVO CORRECTO:
+   - Abre: http://127.0.0.1:8000/static/js/moviles.js
+   - Busca "parseFloat(movil.ultimo_lat)"
+   - Si no lo encuentra, el archivo no se actualizó
+
+4. REINICIAR SERVIDOR:
+   - Ctrl+C para detener
+   - python manage.py runserver
+
+================================================================================
+OTROS CAMPOS QUE PODRÍAN NECESITAR CONVERSIÓN
+================================================================================
+
+Si en el futuro usas estos campos en operaciones JavaScript:
+
+```javascript
+// Velocidad
+const velocidad = parseFloat(movil.ultima_velocidad_kmh || 0);
+
+// Altitud
+const altitud = parseFloat(movil.ultima_altitud_m || 0);
+
+// Batería
+const bateria = parseFloat(movil.bateria_pct || 0);
+
+// Odómetro
+const km = parseFloat(movil.odometro_km || 0);
+
+// Año
+const anio = parseInt(movil.anio || 0);
+
+// Rumbo
+const rumbo = parseInt(movil.ultimo_rumbo || 0);
+```
+
+================================================================================
+RESUMEN
+================================================================================
+
+✅ PROBLEMA: DecimalField se serializa como string en JSON
+✅ SOLUCIÓN: Usar parseFloat() antes de toFixed() u operaciones
+✅ ARCHIVOS ACTUALIZADOS: static/js/moviles.js (3 lugares)
+✅ PRÓXIMO PASO: Recargar página (F5) y verificar
+
+================================================================================
+
+¡El error está corregido! 
+Recarga la página y deberías ver los móviles en el mapa correctamente.
+
+================================================================================

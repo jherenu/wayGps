@@ -1,0 +1,95 @@
+================================================================================
+SOLUCIÓN IMPLEMENTADA: AGREGAR OPCIÓN "MAPA" AL MENÚ DE EQUIPOS
+================================================================================
+
+PROBLEMA IDENTIFICADO:
+----------------------
+En la página de Equipos GPS (`/equipos/`), la opción de menú "Mapa" no aparecía
+en el sidebar, mientras que en la página de Móviles (`/moviles/`) sí estaba
+presente. Esto causaba inconsistencia en la navegación.
+
+COMPARACIÓN DE MENÚS:
+---------------------
+
+ANTES (Inconsistente):
+~~~~~~~~~~~~~~~~~~~~~~
+Móviles:     Dashboard | Móviles | Equipos GPS | Mapa | Reportes
+Equipos:     Dashboard | Móviles | Equipos GPS |      | Reportes
+                                                      ↑ Faltaba
+
+DESPUÉS (Consistente):
+~~~~~~~~~~~~~~~~~~~~~~
+Móviles:     Dashboard | Móviles | Equipos GPS | Mapa | Reportes
+Equipos:     Dashboard | Móviles | Equipos GPS | Mapa | Reportes
+                                                      ↑ Agregado
+
+SOLUCIÓN IMPLEMENTADA:
+---------------------
+
+1. ARCHIVO MODIFICADO:
+   ✓ templates/equipos/index.html
+
+2. CAMBIO REALIZADO:
+   - Agregado item de menú "Mapa" después de "Equipos GPS"
+   - Enlace apunta a `/moviles/#mapa` para redirigir a la sección de mapa
+   - Mantiene el mismo estilo y estructura que en móviles
+
+3. CÓDIGO AGREGADO:
+   ```html
+   <li class="nav-item">
+       <a class="nav-link text-white" href="/moviles/#mapa">
+           <i class="bi bi-map"></i> Mapa
+       </a>
+   </li>
+   ```
+
+4. UBICACIÓN:
+   - Línea 58-62 en templates/equipos/index.html
+   - Entre "Equipos GPS" y "Reportes"
+
+FUNCIONAMIENTO:
+---------------
+
+1. USUARIO EN EQUIPOS:
+   - Ve el menú completo con todas las opciones
+   - Incluyendo la opción "Mapa" que antes faltaba
+
+2. AL HACER CLIC EN "MAPA":
+   - Redirige a `/moviles/#mapa`
+   - Lleva al usuario a la página de móviles
+   - Muestra automáticamente la sección del mapa
+
+3. NAVEGACIÓN CONSISTENTE:
+   - Ambas páginas (Móviles y Equipos) tienen el mismo menú
+   - La experiencia de usuario es uniforme
+   - No hay opciones que aparezcan y desaparezcan
+
+VERIFICACIÓN:
+-------------
+
+Para verificar que funciona correctamente:
+
+1. Ir a: http://127.0.0.1:8000/equipos/
+2. Verificar que aparezca la opción "Mapa" en el menú
+3. Hacer clic en "Mapa"
+4. Verificar que redirija a la página de móviles con el mapa visible
+
+ESTADO FINAL:
+-------------
+✅ Menú de Equipos: Completo con todas las opciones
+✅ Menú de Móviles: Sin cambios, ya estaba completo
+✅ Navegación: Consistente entre ambas páginas
+✅ Funcionalidad: "Mapa" redirige correctamente a la sección de mapa
+
+BENEFICIOS:
+-----------
+- Navegación más intuitiva
+- Menú consistente en toda la aplicación
+- Mejor experiencia de usuario
+- Acceso directo al mapa desde cualquier sección
+
+================================================================================
+Fecha: 2025-10-09
+Sistema: WayGPS Frontend v1.0
+Archivo: templates/equipos/index.html
+================================================================================

@@ -1,0 +1,364 @@
+╔════════════════════════════════════════════════════════════════════════════╗
+║                                                                            ║
+║                  ✅ MEJORAS EN MAPAS - DASHBOARD Y PRINCIPAL               ║
+║                                                                            ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+================================================================================
+PROBLEMAS CORREGIDOS
+================================================================================
+
+1️⃣  MAPA DASHBOARD NO MOSTRABA MÓVILES
+   ANTES: Los marcadores se eliminaban incorrectamente
+   AHORA: Sistema correcto de gestión de marcadores
+
+2️⃣  ETIQUETAS CON PATENTE/ALIAS
+   ANTES: Solo ícono sin identificación visible
+   AHORA: Etiqueta visible con patente/alias debajo del ícono
+
+================================================================================
+CAMBIOS IMPLEMENTADOS
+================================================================================
+
+✅ 1. MAPA DASHBOARD CORREGIDO (updateMapaDashboard)
+
+PROBLEMA:
+  - Usaba document.querySelectorAll para eliminar marcadores
+  - No funcionaba correctamente con Leaflet
+  - Los marcadores no se mostraban
+
+SOLUCIÓN:
+  - Variable dashboardMarkers[] para gestionar marcadores
+  - Elimina con mapaDashboard.removeLayer(marker)
+  - Agrega TODOS los móviles (no solo online)
+  - Ajusta vista automáticamente con fitBounds()
+
+CÓDIGO:
+```javascript
+let dashboardMarkers = [];
+
+function updateMapaDashboard() {
+    // Limpiar marcadores existentes correctamente
+    dashboardMarkers.forEach(marker => mapaDashboard.removeLayer(marker));
+    dashboardMarkers = [];
+    
+    // Agregar todos los móviles
+    movilesData.forEach(movil => {
+        // Crear y agregar marcador
+        dashboardMarkers.push(marker);
+    });
+    
+    // Ajustar vista
+    if (dashboardMarkers.length > 0) {
+        const group = new L.featureGroup(dashboardMarkers);
+        mapaDashboard.fitBounds(group.getBounds().pad(0.1));
+    }
+}
+```
+
+✅ 2. ETIQUETAS CON PATENTE/ALIAS
+
+AGREGADO:
+  - Etiqueta visible con patente/alias/código
+  - Fondo blanco semi-transparente
+  - Borde de color según estado (verde/rojo)
+  - Sombra para mejor legibilidad
+  - Texto en negrita
+
+CARACTERÍSTICAS:
+  ✓ Muestra: patente → alias → codigo (en ese orden de prioridad)
+  ✓ Colores: Verde (online), Rojo (offline)
+  ✓ Tamaño: 11px en mapa principal, 10px en dashboard
+  ✓ Posicionamiento: Debajo del ícono
+  ✓ No seleccionable (user-select: none)
+
+MAPA PRINCIPAL:
+  - Ícono: 24x24px
+  - Etiqueta: 11px, padding 2px 6px
+  - iconSize: [80, 45]
+  - iconAnchor: [40, 45]
+
+MAPA DASHBOARD:
+  - Ícono: 18x18px (más pequeño)
+  - Etiqueta: 10px, padding 1px 4px
+  - iconSize: [70, 38]
+  - iconAnchor: [35, 38]
+
+✅ 3. ESTILOS CSS AGREGADOS (static/css/moviles.css)
+
+```css
+/* Marcadores con etiquetas */
+.custom-marker-with-label {
+    background: none !important;
+    border: none !important;
+}
+
+.custom-marker-with-label div {
+    pointer-events: none;
+}
+
+/* Evitar selección de texto */
+.custom-marker-with-label * {
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+}
+```
+
+================================================================================
+ESTRUCTURA DEL MARCADOR CON ETIQUETA
+================================================================================
+
+HTML generado para cada marcador:
+
+```html
+<div style="text-align: center;">
+    <!-- Ícono circular -->
+    <div style="
+        background-color: green;      /* verde si online, rojo si offline */
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        border: 2px solid white;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        margin: 0 auto;
+    "></div>
+    
+    <!-- Etiqueta con texto -->
+    <div style="
+        background-color: rgba(255,255,255,0.95);
+        color: #333;
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-size: 11px;
+        font-weight: bold;
+        white-space: nowrap;
+        margin-top: 2px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+        border: 1px solid green;      /* verde si online, rojo si offline */
+    ">ABC123</div>                     <!-- patente, alias o código -->
+</div>
+```
+
+================================================================================
+LÓGICA DE PRIORIDAD PARA ETIQUETAS
+================================================================================
+
+Se muestra en este orden de prioridad:
+
+1. movil.patente    → Si existe, muestra patente
+2. movil.alias      → Si no hay patente, muestra alias
+3. movil.codigo     → Si no hay ni patente ni alias, muestra código
+4. 'N/A'            → Si no hay ninguno, muestra "N/A"
+
+Código:
+```javascript
+const label = movil.patente || movil.alias || movil.codigo || 'N/A';
+```
+
+================================================================================
+COLORES DE ESTADO
+================================================================================
+
+VERDE (online):
+  - Móvil actualizado en últimos 15 minutos
+  - Ícono: background-color: green
+  - Borde etiqueta: border: 1px solid green
+
+ROJO (offline):
+  - Móvil sin actualización reciente
+  - Ícono: background-color: red
+  - Borde etiqueta: border: 1px solid red
+
+Configuración en config.js:
+```javascript
+STATUS: {
+    ONLINE_THRESHOLD_MINUTES: 15,
+    ONLINE_COLOR: 'green',
+    OFFLINE_COLOR: 'red'
+}
+```
+
+================================================================================
+DIFERENCIAS ENTRE MAPAS
+================================================================================
+
+MAPA PRINCIPAL (Sección "Mapa"):
+  ✓ Ícono: 24x24px
+  ✓ Etiqueta: 11px
+  ✓ Más grande y visible
+  ✓ Para vista detallada
+
+MAPA DASHBOARD (Pantalla principal):
+  ✓ Ícono: 18x18px
+  ✓ Etiqueta: 10px
+  ✓ Más compacto
+  ✓ Para vista general
+
+================================================================================
+FUNCIONALIDADES AGREGADAS
+================================================================================
+
+1. POPUP AL HACER CLIC:
+   Ambos mapas tienen popup con información detallada:
+   - Estado (online/offline)
+   - GPS ID
+   - Velocidad
+   - Encendido
+   - Batería
+   - Última actualización
+
+2. AUTO-AJUSTE DE VISTA:
+   Ambos mapas se ajustan automáticamente para mostrar todos los móviles:
+   ```javascript
+   const group = new L.featureGroup(markers);
+   map.fitBounds(group.getBounds().pad(0.1));
+   ```
+
+3. ACTUALIZACIÓN AUTOMÁTICA:
+   Los mapas se actualizan cada 30 segundos junto con los datos.
+
+================================================================================
+ARCHIVOS MODIFICADOS
+================================================================================
+
+📄 static/js/moviles.js
+   - updateMapaPrincipal(): Etiquetas agregadas
+   - updateMapaDashboard(): Corregido + etiquetas
+   - Nueva variable: dashboardMarkers[]
+
+📄 static/css/moviles.css
+   - Estilos para .custom-marker-with-label
+   - Prevención de selección de texto
+
+================================================================================
+CÓMO PERSONALIZAR
+================================================================================
+
+CAMBIAR TAMAÑO DE ETIQUETAS:
+
+En moviles.js, busca y modifica:
+```javascript
+font-size: 11px;        // Cambiar tamaño de texto
+padding: 2px 6px;       // Cambiar espacio interno
+```
+
+CAMBIAR COLORES:
+
+En config.js:
+```javascript
+STATUS: {
+    ONLINE_COLOR: 'blue',      // Cambiar verde a azul
+    OFFLINE_COLOR: 'orange',   // Cambiar rojo a naranja
+}
+```
+
+CAMBIAR CONTENIDO DE ETIQUETA:
+
+En moviles.js, busca:
+```javascript
+const label = movil.patente || movil.alias || movil.codigo || 'N/A';
+```
+
+Cambia a lo que quieras mostrar, por ejemplo:
+```javascript
+const label = `${movil.alias} (${movil.patente})`;
+const label = movil.gps_id;
+const label = `${movil.marca} ${movil.modelo}`;
+```
+
+OCULTAR ETIQUETAS:
+
+Si solo quieres el ícono sin etiqueta, comenta o elimina este bloque:
+```javascript
+// Comentar o eliminar esto:
+<div style="
+    background-color: rgba(255,255,255,0.95);
+    ...
+">${label}</div>
+```
+
+================================================================================
+SOLUCIÓN DE PROBLEMAS
+================================================================================
+
+PROBLEMA: Etiquetas muy largas se salen del mapa
+SOLUCIÓN: Usa CSS max-width y overflow
+```javascript
+max-width: 100px;
+overflow: hidden;
+text-overflow: ellipsis;
+```
+
+PROBLEMA: Etiquetas se superponen
+SOLUCIÓN: Reduce el zoom o agrupa marcadores cercanos con plugins como:
+- Leaflet.markercluster
+
+PROBLEMA: No se ven las etiquetas
+SOLUCIÓN:
+1. Limpia cache del navegador (Ctrl+Shift+R)
+2. Verifica que static/js/moviles.js esté actualizado
+3. Verifica consola del navegador (F12) para errores
+
+PROBLEMA: Mapa dashboard sigue sin mostrar móviles
+SOLUCIÓN:
+1. Verifica que los móviles tengan coordenadas
+2. Abre consola (F12) y busca errores
+3. Verifica que la variable dashboardMarkers[] exista
+
+================================================================================
+PRUEBA RÁPIDA
+================================================================================
+
+Después de recargar la página (Ctrl+Shift+R):
+
+✅ Dashboard muestra móviles con etiquetas
+✅ Mapa principal muestra móviles con etiquetas
+✅ Etiquetas tienen color según estado
+✅ Clic en marcador muestra popup
+✅ Vista se ajusta automáticamente
+
+Consola del navegador (F12) debería mostrar:
+```
+[WayGPS] Cargados X móviles
+```
+
+Sin errores de JavaScript.
+
+================================================================================
+PRÓXIMAS MEJORAS POSIBLES
+================================================================================
+
+💡 Sugerencias para el futuro:
+
+1. ROTACIÓN DE ÍCONOS según rumbo del vehículo:
+   ```javascript
+   transform: rotate(${movil.ultimo_rumbo}deg);
+   ```
+
+2. ÍCONOS PERSONALIZADOS según tipo_vehiculo:
+   - 🚗 auto
+   - 🚚 camion
+   - 🏍️ moto
+   - 🚌 bus
+
+3. CLUSTERING para muchos móviles:
+   - Plugin Leaflet.markercluster
+   - Agrupa marcadores cercanos
+
+4. RUTAS EN TIEMPO REAL:
+   - Línea conectando posiciones históricas
+   - Plugin Leaflet.Polyline
+
+5. INFORMACIÓN EN TOOLTIP (hover):
+   - Mostrar datos sin hacer clic
+   - Plugin Leaflet.tooltip
+
+================================================================================
+
+✅ Mejoras implementadas correctamente!
+🔄 Recarga la página: Ctrl + Shift + R
+🗺️ ¡Disfruta de tus mapas mejorados con etiquetas!
+
+================================================================================

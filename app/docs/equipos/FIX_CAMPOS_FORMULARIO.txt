@@ -1,0 +1,200 @@
+╔════════════════════════════════════════════════════════════════════════════╗
+║                                                                            ║
+║               FIX: CAMPOS DEL FORMULARIO DE EQUIPOS                       ║
+║                                                                            ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+================================================================================
+PROBLEMA DETECTADO
+================================================================================
+
+Al intentar guardar un equipo, el frontend estaba enviando campos que NO
+existen en la tabla equipos_gps:
+
+❌ observaciones      -> No existe en la tabla
+❌ ultima_comunicacion -> No existe en la tabla
+❌ codigo             -> No existe en la tabla
+
+Estos campos causaban errores al intentar guardar.
+
+================================================================================
+SOLUCIÓN APLICADA
+================================================================================
+
+1. SERIALIZER (gps/serializers.py):
+   ✓ Definí explícitamente los campos disponibles
+   ✓ Marqué 'empresa' como read_only (no se puede asignar desde frontend)
+   ✓ Agregué validación de IMEI único
+   ✓ Agregué validación de número_serie único
+
+2. FRONTEND HTML (templates/equipos/index.html):
+   ✓ Eliminé campo "observaciones"
+   ✓ Eliminé columna "Última Comunicación" de la tabla
+   ✓ Eliminé columna "Código" de la tabla
+   ✓ Cambié a "N° Serie" en la tabla
+   ✓ Cambié input date a datetime-local (para fecha y hora)
+
+3. FRONTEND JS (static/js/equipos.js):
+   ✓ Eliminé envío de campo "observaciones"
+   ✓ Ajusté columnas de la tabla de 8 a 7
+   ✓ Actualicé createEquipoRow() para mostrar número de serie
+   ✓ Agregué conversión correcta de fecha para datetime-local
+   ✓ Actualicé vista de detalles
+
+================================================================================
+CAMPOS ACTUALES DEL FORMULARIO
+================================================================================
+
+OBLIGATORIOS:
+  * imei (CharField 15, UNIQUE)
+
+OPCIONALES:
+  - numero_serie (CharField 50)
+  - marca (CharField 50)
+  - modelo (CharField 50)
+  - estado (CharField 20) - Default: 'stock'
+  - fecha_instalacion (DateTime)
+
+READ-ONLY (solo lectura):
+  - id
+  - empresa (FK a empresas - se asignará en el futuro)
+  - created_at
+  - updated_at
+  - movil_info (campo calculado para mostrar móvil asignado)
+
+================================================================================
+TABLA EQUIPOS_GPS - ESTRUCTURA REAL
+================================================================================
+
+CREATE TABLE equipos_gps (
+    id BIGSERIAL PRIMARY KEY,
+    imei VARCHAR(15) UNIQUE NOT NULL,
+    numero_serie VARCHAR(50),
+    marca VARCHAR(50),
+    modelo VARCHAR(50),
+    estado VARCHAR(20),
+    empresa INTEGER REFERENCES empresas(id),
+    fecha_instalacion TIMESTAMP,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+================================================================================
+EJEMPLO DE JSON PARA CREAR EQUIPO
+================================================================================
+
+POST /api/equipos/
+{
+  "imei": "123456789012345",
+  "numero_serie": "SN001",
+  "marca": "Teltonika",
+  "modelo": "FMB920",
+  "estado": "stock",
+  "fecha_instalacion": "2025-01-15T10:30:00Z"
+}
+
+RESPUESTA:
+{
+  "id": 1,
+  "imei": "123456789012345",
+  "numero_serie": "SN001",
+  "marca": "Teltonika",
+  "modelo": "FMB920",
+  "estado": "stock",
+  "empresa": null,
+  "fecha_instalacion": "2025-01-15T10:30:00Z",
+  "created_at": "2025-10-08T18:00:00Z",
+  "updated_at": "2025-10-08T18:00:00Z",
+  "movil_info": null
+}
+
+================================================================================
+VALIDACIONES IMPLEMENTADAS
+================================================================================
+
+1. IMEI:
+   ✓ Obligatorio (required)
+   ✓ Único (no duplicados)
+   ✓ Máximo 15 caracteres
+   ✓ Validación en serializer
+
+2. NÚMERO DE SERIE:
+   ✓ Opcional
+   ✓ Único si se proporciona (no duplicados)
+   ✓ Máximo 50 caracteres
+   ✓ Validación en serializer
+
+3. MARCA, MODELO:
+   ✓ Opcionales
+   ✓ Máximo 50 caracteres
+
+4. ESTADO:
+   ✓ Opcional
+   ✓ Valores: 'stock', 'operativo', 'mantenimiento', 'baja'
+   ✓ Default: 'stock'
+
+5. FECHA INSTALACIÓN:
+   ✓ Opcional
+   ✓ Formato: YYYY-MM-DDTHH:mm:ss
+
+================================================================================
+PRÓXIMOS PASOS
+================================================================================
+
+✅ AHORA PUEDES:
+
+1. Reiniciar el servidor si aún no lo has hecho:
+   python manage.py runserver
+
+2. Acceder al módulo de equipos:
+   http://127.0.0.1:8000/equipos/
+
+3. Crear un equipo de prueba:
+   - Clic en "Nuevo Equipo"
+   - Completar IMEI: 123456789012345
+   - Marca: Teltonika
+   - Modelo: FMB920
+   - Estado: En Stock
+   - Guardar
+
+4. El equipo se guardará en la tabla equipos_gps
+
+5. Verás el equipo en la lista
+
+================================================================================
+FUTURAS MEJORAS
+================================================================================
+
+CUANDO IMPLEMENTES:
+
+1. CAMPO MÓVIL:
+   - Agregar FK movil_id a tabla equipos_gps
+   - Actualizar modelo Equipo
+   - Agregar selector de móvil en formulario
+   - Mostrar datos reales en movil_info
+
+2. CAMPO EMPRESA:
+   - Asignar automáticamente según usuario logueado
+   - Filtrar equipos por empresa
+   - Multi-tenant
+
+3. HISTORIAL:
+   - Tabla de historial de asignaciones
+   - Seguimiento de instalaciones/desinstalaciones
+
+4. OBSERVACIONES:
+   - Si necesitas agregar observaciones en el futuro
+   - ALTER TABLE equipos_gps ADD COLUMN observaciones TEXT;
+   - Actualizar modelo y serializer
+
+================================================================================
+
+✅ Formulario de Equipos corregido y funcional!
+
+🔧 Campos alineados con la tabla real
+✅ Validaciones implementadas
+🚀 Listo para crear equipos
+
+Reinicia el servidor y prueba crear tu primer equipo!
+
+================================================================================

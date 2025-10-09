@@ -1,0 +1,378 @@
+╔════════════════════════════════════════════════════════════════════════════╗
+║                                                                            ║
+║              SOLUCIÓN A ERRORES COMUNES DE LOGIN - WAYGPS                 ║
+║                                                                            ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+================================================================================
+ERROR 404 Y 500 AL HACER LOGIN
+================================================================================
+
+ERRORES VISTOS:
+  - Failed to load resource: 404 (Not Found)
+  - Failed to load resource: 500 (Internal Server Error)
+  - SyntaxError: Unexpected token '<', "<!DOCTYPE "... is not valid JSON
+
+CAUSAS POSIBLES:
+1. Ruta API no configurada correctamente
+2. Servidor Django devuelve HTML en lugar de JSON
+3. PerfilUsuario no se crea automáticamente con el User
+4. Falta alguna dependencia
+
+================================================================================
+SOLUCIÓN 1: VERIFICAR QUE EL SERVIDOR ESTÉ CORRIENDO
+================================================================================
+
+1. Detén el servidor (Ctrl+C)
+
+2. Reinicia:
+┌──────────────────────────────────────────────────────────────┐
+│ python manage.py runserver                                   │
+└──────────────────────────────────────────────────────────────┘
+
+3. Verifica en la terminal que no haya errores al iniciar
+
+4. Prueba la URL de la API directamente en el navegador:
+   http://127.0.0.1:8000/api/auth/login/
+   
+   Deberías ver:
+   {
+     "username": ["Este campo es requerido."],
+     "password": ["Este campo es requerido."]
+   }
+
+================================================================================
+SOLUCIÓN 2: VERIFICAR MIGRACIONES
+================================================================================
+
+1. Verifica que las migraciones estén aplicadas:
+┌──────────────────────────────────────────────────────────────┐
+│ python manage.py showmigrations authentication               │
+└──────────────────────────────────────────────────────────────┘
+
+Deberías ver:
+  authentication
+   [X] 0001_initial
+
+2. Si no está marcada con [X], aplica:
+┌──────────────────────────────────────────────────────────────┐
+│ python manage.py migrate authentication                      │
+└──────────────────────────────────────────────────────────────┘
+
+================================================================================
+SOLUCIÓN 3: VERIFICAR DATOS INICIALES
+================================================================================
+
+1. Ejecuta el comando de inicialización:
+┌──────────────────────────────────────────────────────────────┐
+│ python manage.py init_auth_data                              │
+└──────────────────────────────────────────────────────────────┘
+
+2. Si ya se ejecutó antes, verás:
+   "Perfil ya existe: ..."
+   "Rol ya existe: ..."
+   Esto es NORMAL y está bien.
+
+3. Verifica que el superusuario existe:
+┌──────────────────────────────────────────────────────────────┐
+│ python manage.py shell                                       │
+│ >>> from django.contrib.auth.models import User             │
+│ >>> User.objects.filter(is_superuser=True).count()          │
+│ >>> exit()                                                   │
+└──────────────────────────────────────────────────────────────┘
+
+Debe retornar al menos 1.
+
+================================================================================
+SOLUCIÓN 4: CREAR PERFIL USUARIO MANUALMENTE
+================================================================================
+
+Si el PerfilUsuario no se crea automáticamente:
+
+┌──────────────────────────────────────────────────────────────┐
+│ python manage.py shell                                       │
+└──────────────────────────────────────────────────────────────┘
+
+```python
+from django.contrib.auth.models import User
+from authentication.models import PerfilUsuario, Rol
+
+# Verificar usuarios sin perfil
+for user in User.objects.all():
+    if not hasattr(user, 'perfil_usuario'):
+        print(f"Creando perfil para {user.username}")
+        PerfilUsuario.objects.create(user=user)
+        
+        # Si es superuser, asignar rol de superadmin
+        if user.is_superuser:
+            try:
+                rol_admin = Rol.objects.get(codigo='superadmin')
+                user.perfil_usuario.rol = rol_admin
+                user.perfil_usuario.save()
+                print(f"  Rol superadmin asignado")
+            except:
+                pass
+
+print("Listo!")
+exit()
+```
+
+================================================================================
+SOLUCIÓN 5: VERIFICAR CONFIGURACIÓN DE CORS
+================================================================================
+
+En wayproject/settings.py, verifica que tengas:
+
+```python
+CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_CREDENTIALS = True
+```
+
+Y en INSTALLED_APPS:
+```python
+'corsheaders',
+'rest_framework',
+'rest_framework.authtoken',  # ← IMPORTANTE
+'authentication',
+```
+
+================================================================================
+SOLUCIÓN 6: PROBAR API CON CURL O POSTMAN
+================================================================================
+
+Prueba el endpoint directamente:
+
+WINDOWS PowerShell:
+```powershell
+$body = @{
+    username = "admin"
+    password = "admin123"
+} | ConvertTo-Json
+
+Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/auth/login/" `
+    -Method POST `
+    -Body $body `
+    -ContentType "application/json"
+```
+
+O usa el navegador:
+1. Abre: http://127.0.0.1:8000/api/auth/login/
+2. Si ves un formulario de DRF, está funcionando
+3. Completa username y password
+4. Submit
+
+================================================================================
+SOLUCIÓN 7: VERIFICAR LOGS DEL SERVIDOR
+================================================================================
+
+IMPORTANTE: Mira la TERMINAL donde corre Django.
+
+Busca mensajes de error como:
+  - ImportError
+  - AttributeError
+  - IntegrityError
+  - etc.
+
+El error específico te dirá exactamente qué está mal.
+
+ERRORES COMUNES:
+
+"PerfilUsuario matching query does not exist"
+  → Solución 4 (crear perfiles manualmente)
+
+"Token matching query does not exist"
+  → Normal, se crea en el primer login
+
+"UNIQUE constraint failed"
+  → Ya existe un usuario con ese username/email
+
+================================================================================
+SOLUCIÓN 8: REINICIAR DESDE CERO (ÚLTIMO RECURSO)
+================================================================================
+
+Si nada funciona:
+
+1. Eliminar base de datos (CUIDADO - perderás datos):
+   No recomendado si tienes móviles importantes
+
+2. O eliminar solo tablas de autenticación:
+┌──────────────────────────────────────────────────────────────┐
+│ python manage.py dbshell                                     │
+└──────────────────────────────────────────────────────────────┘
+
+```sql
+DROP TABLE IF EXISTS perfil_usuario CASCADE;
+DROP TABLE IF EXISTS roles CASCADE;
+DROP TABLE IF EXISTS perfiles CASCADE;
+DROP TABLE IF EXISTS permisos_entidad CASCADE;
+DROP TABLE IF EXISTS sesiones_usuario CASCADE;
+\q
+```
+
+3. Volver a migrar:
+```
+python manage.py migrate authentication
+python manage.py init_auth_data
+```
+
+================================================================================
+CHECKLIST DE DIAGNÓSTICO
+================================================================================
+
+Ejecuta estos comandos y anota los resultados:
+
+□ python manage.py check
+   → Debe decir: "System check identified no issues"
+
+□ python manage.py showmigrations authentication
+   → Debe mostrar [X] 0001_initial
+
+□ python manage.py shell -c "from authentication.models import Perfil; print(Perfil.objects.count())"
+   → Debe mostrar: 10
+
+□ python manage.py shell -c "from authentication.models import Rol; print(Rol.objects.count())"
+   → Debe mostrar: 3
+
+□ python manage.py shell -c "from django.contrib.auth.models import User; print(User.objects.count())"
+   → Debe mostrar al menos: 1
+
+□ curl http://127.0.0.1:8000/api/auth/login/ -X POST -H "Content-Type: application/json" -d "{}"
+   → Debe devolver JSON con errores de campos requeridos
+
+Si TODO está ✓, el problema es en el frontend.
+
+================================================================================
+VERIFICAR FRONTEND
+================================================================================
+
+1. Abre consola del navegador (F12)
+
+2. Ve a Network tab
+
+3. Intenta hacer login
+
+4. Busca la petición a /api/auth/login/
+
+5. Revisa:
+   - Request Headers
+   - Request Payload
+   - Response Status
+   - Response Body
+
+6. Si el Response Body es HTML (<!DOCTYPE), el servidor está devolviendo
+   una página de error en lugar de JSON.
+
+7. Copia el HTML y busca el error específico.
+
+================================================================================
+FIX RÁPIDO - PROBAR SIN FRONTEND
+================================================================================
+
+Para aislar el problema, prueba la API directamente:
+
+```python
+python manage.py shell
+
+from django.test import Client
+from django.contrib.auth.models import User
+
+# Crear cliente de prueba
+client = Client()
+
+# Intentar login
+response = client.post('/api/auth/login/', {
+    'username': 'admin',
+    'password': 'admin123'
+}, content_type='application/json')
+
+print(f"Status: {response.status_code}")
+print(f"Content: {response.content}")
+
+# Si status es 200, la API funciona
+# Si es 500, mira el error en response.content
+```
+
+================================================================================
+MENSAJE DE ERROR ESPECÍFICO
+================================================================================
+
+Basado en tu error:
+"SyntaxError: Unexpected token '<', "<!DOCTYPE "..."
+
+Esto significa que la API está devolviendo HTML en lugar de JSON.
+
+CAUSA: Probablemente un error 500 en el servidor y Django muestra
+       la página de error HTML.
+
+SOLUCIÓN:
+1. Mira los logs del servidor Django (terminal)
+2. Busca el traceback completo del error
+3. Copia el error y corrígelo
+4. Reinicia servidor
+
+ERRORES COMUNES EN VIEWS:
+- Falta import
+- Typo en nombre de variable
+- Modelo no tiene el campo esperado
+- Signal falla al crear PerfilUsuario
+
+================================================================================
+COMANDO DE DIAGNÓSTICO COMPLETO
+================================================================================
+
+Ejecuta este script de diagnóstico:
+
+```
+python manage.py shell
+
+print("="*70)
+print("DIAGNÓSTICO DEL SISTEMA DE AUTENTICACIÓN")
+print("="*70)
+
+from django.contrib.auth.models import User
+from authentication.models import Perfil, Rol, PerfilUsuario, PermisoEntidad
+
+print(f"\n1. Usuarios: {User.objects.count()}")
+print(f"   Superusuarios: {User.objects.filter(is_superuser=True).count()}")
+
+print(f"\n2. Perfiles: {Perfil.objects.count()}")
+for p in Perfil.objects.all()[:5]:
+    print(f"   - {p.nombre} ({p.codigo})")
+
+print(f"\n3. Roles: {Rol.objects.count()}")
+for r in Rol.objects.all():
+    print(f"   - {r.nombre} ({r.codigo})")
+
+print(f"\n4. Perfiles de Usuario: {PerfilUsuario.objects.count()}")
+print(f"5. Permisos de Entidad: {PermisoEntidad.objects.count()}")
+
+print(f"\n6. Verificando usuario admin:")
+try:
+    admin = User.objects.get(username='admin')
+    print(f"   - Existe: Sí")
+    print(f"   - Email: {admin.email}")
+    print(f"   - Is superuser: {admin.is_superuser}")
+    print(f"   - Is active: {admin.is_active}")
+    if hasattr(admin, 'perfil_usuario'):
+        print(f"   - Tiene PerfilUsuario: Sí")
+        print(f"   - Rol: {admin.perfil_usuario.rol}")
+    else:
+        print(f"   - Tiene PerfilUsuario: NO ← PROBLEMA AQUÍ")
+except User.DoesNotExist:
+    print(f"   - Existe: NO ← PROBLEMA AQUÍ")
+
+print("\n" + "="*70)
+```
+
+================================================================================
+SI EL PROBLEMA PERSISTE
+================================================================================
+
+Envíame:
+1. Los logs del servidor Django (terminal donde corre)
+2. El output del diagnóstico completo de arriba
+3. El contenido de la pestaña Network en F12 cuando haces login
+
+Con eso puedo identificar el problema exacto.
+
+================================================================================

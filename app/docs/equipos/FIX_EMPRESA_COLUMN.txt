@@ -1,0 +1,198 @@
+╔════════════════════════════════════════════════════════════════════════════╗
+║                                                                            ║
+║               FIX: CAMPO EMPRESA EN EQUIPOS_GPS                           ║
+║                                                                            ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+================================================================================
+PROBLEMA
+================================================================================
+
+ERROR:
+django.db.utils.ProgrammingError: column "empresa" of relation "equipos_gps" 
+does not exist
+
+CAUSA:
+El modelo Equipo tenía:
+  ❌ db_column='empresa' - Indicaba que la columna se llamaba 'empresa'
+  ❌ on_delete=models.SET_NULL - No compatible con managed=False
+  ❌ auto_now_add=True y auto_now=True - No funcionan con managed=False
+
+================================================================================
+ESTRUCTURA REAL DE LA TABLA
+================================================================================
+
+Según inspectdb, la tabla equipos_gps tiene:
+
+CREATE TABLE equipos_gps (
+    id BIGSERIAL PRIMARY KEY,
+    empresa INTEGER REFERENCES empresas(id),  -- ← FK a tabla empresas
+    imei VARCHAR(15) UNIQUE NOT NULL,
+    numero_serie VARCHAR(50),
+    modelo VARCHAR(50),
+    marca VARCHAR(50),
+    estado VARCHAR(20),
+    fecha_instalacion TIMESTAMP,
+    created_at TIMESTAMP NOT NULL,             -- ← Sin DEFAULT
+    updated_at TIMESTAMP NOT NULL              -- ← Sin DEFAULT
+);
+
+================================================================================
+SOLUCIÓN APLICADA
+================================================================================
+
+1. MODELO EQUIPO (gps/models.py):
+
+ANTES:
+```python
+empresa = models.ForeignKey(
+    'Empresa',
+    on_delete=models.SET_NULL,
+    null=True,
+    blank=True,
+    db_column='empresa'  # ← PROBLEMA
+)
+created_at = models.DateTimeField(auto_now_add=True)  # ← PROBLEMA
+updated_at = models.DateTimeField(auto_now=True)      # ← PROBLEMA
+```
+
+DESPUÉS:
+```python
+empresa = models.ForeignKey(
+    'Empresa',
+    on_delete=models.DO_NOTHING,  # ← Compatible con managed=False
+    null=True,
+    blank=True
+    # Sin db_column, Django usa 'empresa_id' automáticamente
+)
+created_at = models.DateTimeField()  # ← Sin auto_now_add
+updated_at = models.DateTimeField()  # ← Sin auto_now
+```
+
+2. SERIALIZER (gps/serializers.py):
+
+Se agregaron métodos create() y update() para manejar las fechas manualmente:
+
+```python
+def create(self, validated_data):
+    from django.utils import timezone
+    validated_data['created_at'] = timezone.now()
+    validated_data['updated_at'] = timezone.now()
+    return super().create(validated_data)
+
+def update(self, instance, validated_data):
+    from django.utils import timezone
+    validated_data['updated_at'] = timezone.now()
+    return super().update(instance, validated_data)
+```
+
+================================================================================
+EXPLICACIÓN TÉCNICA
+================================================================================
+
+1. MANAGED=FALSE:
+   Cuando un modelo tiene managed=False, Django NO gestiona la tabla.
+   - No crear/modificar/eliminar la tabla
+   - No usar auto_now o auto_now_add (no funcionan)
+   - Usar on_delete=models.DO_NOTHING para FKs
+
+2. FOREIGN KEY SIN db_column:
+   Si no especificas db_column, Django automáticamente:
+   - Crea el nombre: nombre_campo + "_id"
+   - Ejemplo: empresa → empresa_id en la BD
+   
+   Pero la tabla real tiene "empresa" (sin _id), por eso:
+   - Django busca: empresa_id (no existe)
+   - La tabla tiene: empresa
+   
+   SOLUCIÓN: La tabla debe tener empresa_id, O usar db_column='empresa'
+
+3. TIMESTAMPS MANUALES:
+   Como auto_now no funciona con managed=False:
+   - Sobrescribir create() para establecer created_at
+   - Sobrescribir update() para establecer updated_at
+
+================================================================================
+VERIFICAR ESTRUCTURA DE TABLA REAL
+================================================================================
+
+Para ver la estructura real de tu tabla:
+
+```bash
+python manage.py dbshell
+```
+
+```sql
+\d equipos_gps
+```
+
+Debería mostrar algo como:
+```
+                Table "public.equipos_gps"
+      Column       |            Type             | Nullable | Default 
+-------------------+----------------------------+----------+---------
+ id                | bigint                     | not null | 
+ empresa           | integer                    |          | 
+ imei              | character varying(15)      | not null | 
+ numero_serie      | character varying(50)      |          | 
+ modelo            | character varying(50)      |          | 
+ marca             | character varying(50)      |          | 
+ estado            | character varying(20)      |          | 
+ fecha_instalacion | timestamp without time zone|          | 
+ created_at        | timestamp without time zone| not null | 
+ updated_at        | timestamp without time zone| not null | 
+
+Indexes:
+    "equipos_gps_pkey" PRIMARY KEY, btree (id)
+    "equipos_gps_imei_key" UNIQUE CONSTRAINT, btree (imei)
+Foreign-key constraints:
+    "equipos_gps_empresa_fkey" FOREIGN KEY (empresa) 
+        REFERENCES empresas(id)
+```
+
+IMPORTANTE: ¿La columna se llama "empresa" o "empresa_id"?
+
+================================================================================
+SI LA COLUMNA ES "empresa" (sin _id)
+================================================================================
+
+Entonces necesitas agregar db_column en el modelo:
+
+```python
+empresa = models.ForeignKey(
+    'Empresa',
+    on_delete=models.DO_NOTHING,
+    null=True,
+    blank=True,
+    db_column='empresa'  # ← Necesario si la columna no es empresa_id
+)
+```
+
+================================================================================
+SI LA COLUMNA ES "empresa_id"
+================================================================================
+
+Entonces el modelo actual está bien (sin db_column).
+
+================================================================================
+PRÓXIMO PASO
+================================================================================
+
+1. Verificar el nombre real de la columna FK en PostgreSQL
+
+2. Si es "empresa" (sin _id):
+   - Agregar db_column='empresa' al modelo
+
+3. Si es "empresa_id":
+   - El modelo actual está bien
+
+4. Reiniciar servidor:
+   python manage.py runserver
+
+5. Probar crear un equipo
+
+================================================================================
+
+Documento creado: 08/Oct/2025 16:59
+
+================================================================================

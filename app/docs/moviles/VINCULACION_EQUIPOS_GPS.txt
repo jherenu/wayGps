@@ -1,0 +1,251 @@
+╔════════════════════════════════════════════════════════════════════════════╗
+║                                                                            ║
+║          VINCULACIÓN MÓVILES ↔ EQUIPOS GPS                                ║
+║                                                                            ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+================================================================================
+DESCRIPCIÓN
+================================================================================
+
+Sistema de vinculación entre Móviles (vehículos) y Equipos GPS.
+
+CAMPO DE VINCULACIÓN:
+  moviles.gps_id  ↔  equipos_gps.imei
+
+FUNCIONAMIENTO:
+  - Un móvil puede tener UN equipo GPS asignado (o ninguno)
+  - El campo gps_id del móvil guarda el IMEI del equipo asignado
+  - Solo se muestran equipos con estado 'inactivo' (sin asignar)
+  - Al asignar un equipo, se guarda su IMEI en gps_id
+
+================================================================================
+BACKEND - API
+================================================================================
+
+1. ENDPOINT NUEVO: Equipos Sin Asignar
+   
+   GET /api/equipos/sin_asignar/
+   
+   Retorna equipos con estado='inactivo' que NO están asignados a ningún móvil
+   (no aparecen en moviles.gps_id)
+   
+   RESPUESTA:
+   ```json
+   [
+     {
+       "id": 1,
+       "imei": "123456789012345",
+       "numero_serie": "SN001",
+       "marca": "Teltonika",
+       "modelo": "FMB920",
+       "estado": "inactivo",
+       "fecha_instalacion": null,
+       "created_at": "2025-10-08T...",
+       "updated_at": "2025-10-08T...",
+       "movil_info": null
+     }
+   ]
+   ```
+
+2. SERIALIZER MOVIL ACTUALIZADO:
+   
+   Ahora incluye campo calculado 'equipo_gps_info' que muestra:
+   - IMEI del equipo
+   - Marca y modelo
+   - Número de serie
+   - Estado
+   
+   EJEMPLO:
+   ```json
+   {
+     "id": 1,
+     "patente": "ABC123",
+     "gps_id": "123456789012345",
+     "equipo_gps_info": {
+       "id": 1,
+       "imei": "123456789012345",
+       "marca": "Teltonika",
+       "modelo": "FMB920",
+       "numero_serie": "SN001",
+       "estado": "activo"
+     }
+   }
+   ```
+
+3. SERIALIZER EQUIPO ACTUALIZADO:
+   
+   Ahora 'movil_info' busca en la tabla moviles por gps_id:
+   
+   EJEMPLO:
+   ```json
+   {
+     "id": 1,
+     "imei": "123456789012345",
+     "estado": "activo",
+     "movil_info": {
+       "id": 1,
+       "patente": "ABC123",
+       "alias": "Camión 1"
+     }
+   }
+   ```
+
+================================================================================
+FRONTEND - MÓVILES
+================================================================================
+
+1. FORMULARIO DE MÓVIL:
+   
+   Nuevo campo: "Equipo GPS" (select/combo)
+   
+   OPCIONES:
+   - "Sin asignar" (value="")
+   - Lista de equipos inactivos disponibles
+   - Si está editando y tiene uno asignado, se muestra aunque no esté disponible
+   
+   FORMATO:
+   "123456789012345 - Teltonika FMB920"
+
+2. FUNCIÓN: cargarEquiposDisponibles()
+   
+   Se ejecuta al abrir el modal de crear/editar móvil
+   
+   COMPORTAMIENTO:
+   - Llama a /api/equipos/sin_asignar/
+   - Puebla el select con los equipos disponibles
+   - Si el móvil tiene un equipo asignado, lo agrega a la lista
+     aunque no esté en los disponibles
+
+3. FUNCIÓN: guardarMovil()
+   
+   El campo gps_id se envía al backend con el IMEI seleccionado
+   o null si no hay selección
+
+================================================================================
+FLUJO DE ASIGNACIÓN
+================================================================================
+
+ESCENARIO 1: Asignar equipo a móvil nuevo
+
+1. Usuario crea nuevo móvil
+2. Selecciona equipo GPS del combo (solo muestra inactivos sin asignar)
+3. Al guardar, se guarda el IMEI en moviles.gps_id
+4. El equipo ahora aparece como "asignado" en la lista de equipos
+
+ESCENARIO 2: Cambiar equipo de un móvil
+
+1. Usuario edita móvil existente
+2. Ve el equipo actual asignado (si tiene)
+3. Puede:
+   a) Mantenerlo (no cambia nada)
+   b) Cambiarlo por otro disponible
+   c) Quitarlo (seleccionar "Sin asignar")
+4. Al guardar, se actualiza moviles.gps_id
+
+ESCENARIO 3: Quitar equipo de un móvil
+
+1. Usuario edita móvil
+2. Selecciona "Sin asignar"
+3. Al guardar, gps_id se establece en NULL
+4. El equipo queda disponible para otros móviles
+
+================================================================================
+CAMBIOS DE ESTADO
+================================================================================
+
+IMPORTANTE:
+El estado del equipo NO se cambia automáticamente al asignarlo.
+
+RECOMENDACIÓN FUTURA:
+Implementar lógica que:
+1. Al asignar equipo → cambiar estado a 'activo'
+2. Al quitar equipo → cambiar estado a 'inactivo'
+
+Por ahora es MANUAL:
+- Asignar el equipo en el móvil
+- Luego ir a Equipos y cambiar su estado manualmente
+
+================================================================================
+VALIDACIONES
+================================================================================
+
+BACKEND:
+✓ gps_id es NULL-able (puede estar vacío)
+✓ No hay constraint de unicidad (varios móviles podrían tener el mismo gps_id)
+  NOTA: Esto podría ser un problema. Considera agregar constraint UNIQUE.
+
+FRONTEND:
+✓ Solo muestra equipos inactivos sin asignar
+✓ Permite seleccionar "Sin asignar"
+✓ Mantiene el equipo actual al editar (aunque no esté disponible)
+
+================================================================================
+ARCHIVOS MODIFICADOS
+================================================================================
+
+BACKEND:
+  gps/views.py
+  └─ EquipoViewSet.sin_asignar()     ✓ Endpoint para equipos disponibles
+  
+  gps/serializers.py
+  └─ MovilSerializer                  ✓ Campo equipo_gps_info
+  └─ EquipoSerializer                 ✓ Campo movil_info actualizado
+
+FRONTEND:
+  templates/moviles/index.html
+  └─ Campo select gps-id              ✓ Combo de equipos
+  
+  static/js/moviles.js
+  └─ cargarEquiposDisponibles()       ✓ Carga equipos sin asignar
+  └─ mostrarFormularioMovil()         ✓ Actualizada (async)
+
+================================================================================
+USO DEL SISTEMA
+================================================================================
+
+1. CREAR EQUIPO GPS:
+   - Ir a /equipos/
+   - Crear equipo con IMEI
+   - Estado: Inactivo
+   - Guardar
+
+2. ASIGNAR A MÓVIL:
+   - Ir a /moviles/
+   - Crear o editar móvil
+   - En "Equipo GPS" seleccionar el equipo
+   - Guardar
+
+3. VER ASIGNACIÓN:
+   - En lista de móviles: columna GPS ID
+   - En lista de equipos: columna "Móvil Asignado"
+
+4. DESASIGNAR:
+   - Editar móvil
+   - Seleccionar "Sin asignar"
+   - Guardar
+
+================================================================================
+MEJORAS FUTURAS
+================================================================================
+
+☐ Cambio automático de estado del equipo al asignar/desasignar
+☐ Constraint UNIQUE en moviles.gps_id para evitar duplicados
+☐ Validación que impida asignar un equipo ya asignado
+☐ Historial de asignaciones (quién tuvo qué equipo y cuándo)
+☐ Fecha de instalación/desinstalación automática
+☐ Dashboard de equipos (cuántos asignados, disponibles, etc.)
+☐ Filtro en móviles por "Con/Sin equipo GPS"
+
+================================================================================
+
+✅ Vinculación Móviles ↔ Equipos GPS implementada!
+
+🔗 Campo: moviles.gps_id ↔ equipos_gps.imei
+📊 Endpoint: GET /api/equipos/sin_asignar/
+🎨 Select dinámico en formulario de móviles
+✅ Solo muestra equipos inactivos disponibles
+
+Reinicia el servidor y prueba asignar un equipo a un móvil!
+
+================================================================================
