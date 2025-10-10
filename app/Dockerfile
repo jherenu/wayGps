@@ -13,6 +13,8 @@ RUN apt-get update \
         postgresql-client \
         build-essential \
         libpq-dev \
+        gdal-bin \
+        libgdal-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Crear usuario no-root para seguridad ANTES de copiar archivos
