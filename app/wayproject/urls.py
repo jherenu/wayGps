@@ -8,7 +8,8 @@ from authentication.views import login_frontend
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/auth/', include('authentication.urls')),  # API de autenticación
-    path('api/', include('gps.urls')),  # API de GPS
+    path('api/', include('gps.urls')),  # API de GPS (solo equipos)
+    path('', include('moviles.urls')),  # API y frontend de móviles
     path('login/', login_frontend, name='login'),  # Página de login
     path('equipos/', equipos_frontend, name='equipos_frontend'),
     path('', login_frontend, name='home'),  # Redirige raíz a login
