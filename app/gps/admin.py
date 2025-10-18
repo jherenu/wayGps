@@ -1,14 +1,5 @@
 from django.contrib import admin
-from .models import Movil, Equipo
-
-
-@admin.register(Movil)
-class MovilAdmin(admin.ModelAdmin):
-    list_display = ['patente', 'alias', 'gps_id', 'marca', 'modelo', 'activo', 'created_at']
-    list_filter = ['activo', 'tipo_vehiculo', 'created_at']
-    search_fields = ['patente', 'alias', 'gps_id', 'codigo', 'vin']
-    ordering = ['-created_at']
-
+from .models import Equipo
 
 @admin.register(Equipo)
 class EquipoAdmin(admin.ModelAdmin):

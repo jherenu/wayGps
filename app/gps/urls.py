@@ -1,9 +1,8 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import MovilViewSet, EquipoViewSet
+from .views import  EquipoViewSet
 
 router = DefaultRouter()
-router.register(r'moviles', MovilViewSet)
 router.register(r'equipos', EquipoViewSet)
 
 urlpatterns = [

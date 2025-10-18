@@ -60,7 +60,8 @@ INSTALLED_APPS = [
     'rest_framework.authtoken',  # Para autenticación con tokens
     'corsheaders',
     'authentication',  # Nueva app de autenticación
-    'gps',    
+    'gps',  
+    'moviles',  
 ]
 
 MIDDLEWARE = [
