@@ -7,7 +7,7 @@ from .serializers import MovilSerializer, EquipoSerializer
 
 
 class MovilViewSet(viewsets.ModelViewSet):
-    queryset = Movil.objects.all()
+    queryset = Movil.objects.select_related('equipo_gps').all()  # ← OPTIMIZACIÓN
     serializer_class = MovilSerializer
 
 

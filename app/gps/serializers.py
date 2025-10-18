@@ -13,28 +13,24 @@ class MovilSerializer(serializers.ModelSerializer):
             'ultimo_lat', 'ultimo_lon', 'ultimo_rumbo', 'ultima_velocidad_kmh',
             'ultima_altitud_m', 'ult_satelites', 'ultimo_hdop',
             'fecha_gps', 'fecha_recepcion', 'raw_data', 'raw_json',
-            'ignicion', 'bateria_pct', 'odometro_km', 'km_calculado', 'km_ultimo_calculo_at',
+            'ignicion', 'bateria_pct', 'odometro_km', 'km_calculado',
             'dir_formateada', 'dir_calle', 'dir_numero', 'dir_piso', 'dir_depto',
             'dir_barrio', 'dir_localidad', 'dir_municipio', 'dir_provincia',
             'dir_cp', 'dir_pais', 'geo_fuente', 'geo_confianza',
-            'geo_actualizado_at', 'geo_geohash', 'equipo_gps_info'
+            'geo_actualizado_at', 'geo_geohash',
+            'gps_id',  # DEPRECATED - mantener read_only por compatibilidad
         )
     
     def get_equipo_gps_info(self, obj):
-        """Retorna información del equipo GPS asignado (por gps_id)"""
-        if obj.gps_id:
-            try:
-                equipo = Equipo.objects.get(imei=obj.gps_id)
-                return {
-                    'id': equipo.id,
-                    'imei': equipo.imei,
-                    'marca': equipo.marca,
-                    'modelo': equipo.modelo,
-                    'numero_serie': equipo.numero_serie,
-                    'estado': equipo.estado
-                }
-            except Equipo.DoesNotExist:
-                return None
+        """Retorna información del equipo GPS asignado usando la FK"""
+        if obj.equipo_gps:  # ← CAMBIO: Usa la FK en lugar de gps_id
+            return {
+                'id': obj.equipo_gps.id,
+                'imei': obj.equipo_gps.imei,
+                'marca': obj.equipo_gps.marca,
+                'modelo': obj.equipo_gps.modelo,
+                'estado': obj.equipo_gps.estado
+            }
         return None
     
     def validate_patente(self, value):

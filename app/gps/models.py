@@ -18,7 +18,18 @@ class Movil(models.Model):
     tipo_vehiculo = models.CharField(max_length=20, null=True, blank=True)
 
     # Equipo GPS
-    gps_id = models.CharField(max_length=50, unique=True, null=True, blank=True)
+    gps_id = models.CharField(max_length=50, unique=True, null=True, blank=True, db_column='gps_id',
+                              help_text='DEPRECATED - Usar equipo_gps')
+        # Columna NUEVA (ForeignKey)
+    equipo_gps = models.ForeignKey(
+        'Equipo',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='moviles',
+        db_column='equipo_gps_id',
+        verbose_name='Equipo GPS'
+    )                              
 
     # Última posición
     ultimo_lat = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
