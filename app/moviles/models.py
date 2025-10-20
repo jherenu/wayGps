@@ -52,23 +52,6 @@ class Movil(models.Model):
     km_calculado = models.DecimalField(max_digits=12, decimal_places=3, null=True, blank=True)
     km_ultimo_calculo_at = models.DateTimeField(null=True, blank=True)
 
-    # Geocodificación
-    dir_formateada = models.TextField(null=True, blank=True)
-    dir_calle = models.TextField(null=True, blank=True)
-    dir_numero = models.TextField(null=True, blank=True)
-    dir_piso = models.TextField(null=True, blank=True)
-    dir_depto = models.TextField(null=True, blank=True)
-    dir_barrio = models.TextField(null=True, blank=True)
-    dir_localidad = models.TextField(null=True, blank=True)
-    dir_municipio = models.TextField(null=True, blank=True)
-    dir_provincia = models.TextField(null=True, blank=True)
-    dir_cp = models.TextField(null=True, blank=True)
-    dir_pais = models.TextField(default='Argentina', null=True, blank=True)
-    geo_fuente = models.CharField(max_length=30, null=True, blank=True)
-    geo_confianza = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
-    geo_actualizado_at = models.DateTimeField(null=True, blank=True)
-    geo_geohash = models.CharField(max_length=15, null=True, blank=True)
-
     # Geometría
     geom = models.PointField(srid=4326, null=True, blank=True)
 
@@ -92,3 +75,52 @@ class Movil(models.Model):
 
     def __str__(self):
         return f"{self.alias or self.patente or self.gps_id}"
+
+class MovilGeocode(models.Model):
+    """
+    Datos de geocodificación del móvil.
+    Relación 1:1 con Movil.
+    """
+    
+    # Relación con Movil
+    movil = models.OneToOneField(
+        Movil,
+        on_delete=models.CASCADE,
+        primary_key=True,
+        related_name='geocode',
+        verbose_name='Móvil'
+    )
+    
+    # Dirección formateada completa
+    dir_formateada = models.TextField(null=True, blank=True, verbose_name='Dirección Formateada')
+    # Componentes de dirección
+    dir_calle = models.TextField(null=True, blank=True, verbose_name='Calle')
+    dir_numero = models.TextField(null=True, blank=True, verbose_name='Número')
+    dir_piso = models.TextField(null=True, blank=True, verbose_name='Piso')
+    dir_depto = models.TextField(null=True, blank=True, verbose_name='Departamento')
+    dir_barrio = models.TextField(null=True, blank=True, verbose_name='Barrio')
+    dir_localidad = models.TextField(null=True, blank=True, verbose_name='Localidad')
+    dir_municipio = models.TextField(null=True, blank=True, verbose_name='Municipio')
+    dir_provincia = models.TextField(null=True, blank=True, verbose_name='Provincia')
+    dir_cp = models.TextField(null=True, blank=True, verbose_name='Código Postal')
+    dir_pais = models.TextField(default='Argentina', null=True, blank=True, verbose_name='País')
+    
+    # Metadatos de geocodificación
+    geo_fuente = models.CharField(max_length=30, null=True, blank=True, verbose_name='Fuente Geocodificación')
+    geo_confianza = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True, verbose_name='Confianza (%)')
+    geo_actualizado_at = models.DateTimeField(null=True, blank=True, verbose_name='Última Actualización')
+    geo_geohash = models.CharField(max_length=15, null=True, blank=True, verbose_name='Geohash')
+    
+    # Auditoría
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Fecha Creación')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Fecha Actualización')
+    
+    class Meta:
+        db_table = 'moviles_geocode'
+        verbose_name = 'Geocodificación de Móvil'
+        verbose_name_plural = 'Geocodificaciones de Móviles'
+    
+    def __str__(self):
+        if self.dir_formateada:
+            return f"Geocode: {self.dir_formateada[:50]}"
+        return f"Geocode: Móvil #{self.movil_id}"
