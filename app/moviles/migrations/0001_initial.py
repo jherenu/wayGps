@@ -97,7 +97,7 @@ class Migration(migrations.Migration):
                         ('activo', models.BooleanField(default=True)),
                         ('created_at', models.DateTimeField(auto_now_add=True)),
                         ('updated_at', models.DateTimeField(auto_now=True)),
-                        ('equipo_gps', models.ForeignKey(blank=True, db_column='equipo_gps_id', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='moviles', to='gps.equipo', verbose_name='Equipo GPS')),
+                        ('equipo_gps', models.ForeignKey(blank=True, db_column='equipo_gps_id', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='moviles', to='gps.Equipo', verbose_name='Equipo GPS')),
                     ],
                     options={
                         'verbose_name': 'Móvil',
