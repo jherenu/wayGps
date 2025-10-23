@@ -7,7 +7,7 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('gps', '0004_add_equipo_gps_fk'),
-        ('moviles', '0001_initial'),
+        ('moviles', '0001_squashed'),
     ]
 
     operations = [

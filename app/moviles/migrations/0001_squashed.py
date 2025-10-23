@@ -7,10 +7,7 @@ import django.db.models.deletion
 class Migration(migrations.Migration):
 
     replaces = [
-        ('moviles', '0001_initial'),
-        ('moviles', '0002_movilgeocode_remove_movil_dir_barrio_and_more'),
-        ('moviles', '0003_moviltelemetria'),
-        ('moviles', '0004_remove_movil_bateria_pct_remove_movil_ignicion_and_more'),
+
     ]
 
     initial = True
