@@ -45,13 +45,6 @@ class Movil(models.Model):
     raw_data = models.TextField(null=True, blank=True)
     raw_json = models.JSONField(null=True, blank=True)
 
-    # Telemetría
-    ignicion = models.BooleanField(null=True, blank=True)
-    bateria_pct = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
-    odometro_km = models.DecimalField(max_digits=12, decimal_places=3, null=True, blank=True)
-    km_calculado = models.DecimalField(max_digits=12, decimal_places=3, null=True, blank=True)
-    km_ultimo_calculo_at = models.DateTimeField(null=True, blank=True)
-
     # Geometría
     geom = models.PointField(srid=4326, null=True, blank=True)
 
@@ -124,3 +117,62 @@ class MovilGeocode(models.Model):
         if self.dir_formateada:
             return f"Geocode: {self.dir_formateada[:50]}"
         return f"Geocode: Móvil #{self.movil_id}"
+
+class MovilTelemetria(models.Model):
+    """
+    Datos de telemetría y sensores del vehículo.
+    Relación OneToOne con Movil.
+    """
+    movil = models.OneToOneField(
+        'Movil',
+        on_delete=models.CASCADE,
+        primary_key=True,
+        related_name='telemetria'
+    )
+    
+    # Sensores
+    ignicion = models.BooleanField(
+        null=True, 
+        blank=True,
+        help_text='Estado de la ignición del vehículo'
+    )
+    bateria_pct = models.DecimalField(
+        max_digits=5, 
+        decimal_places=2, 
+        null=True, 
+        blank=True,
+        help_text='Porcentaje de batería del vehículo'
+    )
+    
+    # Odómetro
+    odometro_km = models.DecimalField(
+        max_digits=12, 
+        decimal_places=3, 
+        null=True, 
+        blank=True,
+        help_text='Odómetro reportado por el GPS'
+    )
+    km_calculado = models.DecimalField(
+        max_digits=12, 
+        decimal_places=3, 
+        null=True, 
+        blank=True,
+        help_text='Kilómetros calculados por el sistema'
+    )
+    km_ultimo_calculo_at = models.DateTimeField(
+        null=True, 
+        blank=True,
+        help_text='Última vez que se calculó el kilometraje'
+    )
+    
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'moviles_telemetria'
+        verbose_name = 'Telemetría de Móvil'
+        verbose_name_plural = 'Telemetrías de Móviles'
+    
+    def __str__(self):
+        return f"Telemetría {self.movil.patente}"
