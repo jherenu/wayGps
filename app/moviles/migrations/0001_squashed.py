@@ -13,7 +13,7 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ('gps', '0005_empresa_equipo_delete_movil'),
+        ('gps', '0004_add_equipo_gps_fk'),
     ]
 
     operations = [
